@@ -5,25 +5,46 @@ import (
 	"fmt"
 	"github.com/terratensor/library/parser/internal/config"
 	"github.com/terratensor/library/parser/internal/errorlog"
+	"github.com/terratensor/library/parser/internal/lib/logger/handlers/slogpretty"
+	"github.com/terratensor/library/parser/internal/lib/logger/sl"
 	"github.com/terratensor/library/parser/internal/library/entry"
 	"github.com/terratensor/library/parser/internal/parser"
 	"github.com/terratensor/library/parser/internal/storage/manticore"
 	"github.com/terratensor/library/parser/internal/utils"
 	"github.com/terratensor/library/parser/internal/workerpool"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
+)
+
+const (
+	envLocal = "local"
+	envDev   = "dev"
+	envProd  = "prod"
 )
 
 func main() {
 	// Чтение конфиг-файла
 	cfg := config.MustLoad()
+
+	logger := setupLogger(cfg.Env)
+	logger = logger.With(slog.String("env", cfg.Env)) // к каждому сообщению будет добавляться поле с информацией о текущем окружении
+
+	logger.Debug("logger debug mode enabled")
+	logger.Debug("initializing manticore client",
+		slog.String("index", cfg.Manticore.Index),
+		slog.String("host", cfg.Manticore.Host),
+		slog.String("port", cfg.Manticore.Port),
+	)
+
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 
 	// Инициализация хранилища
 	manticoreClient, err := manticore.New(ctx, &cfg.Manticore)
 	if err != nil {
-		log.Fatalf("error creating manticore client: %v", err)
+		logger.Error("error creating manticore client", sl.Err(err))
+		os.Exit(1)
 	}
 	storage := entry.New(manticoreClient)
 
@@ -72,4 +93,34 @@ func main() {
 
 	errorlog.Save(errors)
 	log.Println("all files done")
+}
+
+func setupLogger(env string) *slog.Logger {
+	var log *slog.Logger
+
+	switch env {
+	case envLocal:
+		log = setupPrettySlog()
+	case envDev:
+		log = slog.New(
+			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
+		)
+	case envProd:
+		log = slog.New(
+			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
+		)
+	}
+	return log
+}
+
+func setupPrettySlog() *slog.Logger {
+	opts := slogpretty.PrettyHandlerOptions{
+		SlogOpts: &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		},
+	}
+
+	handler := opts.NewPrettyHandler(os.Stdout)
+
+	return slog.New(handler)
 }

@@ -6,61 +6,54 @@ import (
 	openapiclient "github.com/manticoresoftware/manticoresearch-go"
 	"github.com/terratensor/library/parser/internal/config"
 	"github.com/terratensor/library/parser/internal/library/entry"
-	"log"
 	"strings"
 )
 
 var _ entry.StorageInterface = &Client{}
+
 var apiClient *openapiclient.APIClient
 
 type Client struct {
-	apiClient *openapiclient.APIClient
 	Index     string
+	apiClient *openapiclient.APIClient
 }
 
 func New(ctx context.Context, cfg *config.Manticore) (*Client, error) {
+	const op = "storage.manticore.New"
 	// Initialize apiClient
 	configuration := openapiclient.NewConfiguration()
 	configuration.Servers = openapiclient.ServerConfigurations{{URL: serverConfigurationURL(cfg)}}
 	apiClient = openapiclient.NewAPIClient(configuration)
 
 	tbl := cfg.Index
-
 	// Check if table exists in cache
-	exists, err := tableExists(ctx, apiClient, tbl)
-	if err != nil {
-		return nil, err
-	} else if !exists {
+	exists := tableExists(ctx, tbl)
+	if !exists {
 		// Create table if it doesn't exist
-		if err = createTable(ctx, apiClient, tbl); err != nil {
-			return nil, err
+		if err := createTable(ctx, tbl); err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 	}
-
-	return &Client{apiClient: apiClient, Index: tbl}, nil
+	return &Client{Index: tbl, apiClient: apiClient}, nil
 }
 
-func tableExists(ctx context.Context, apiClient *openapiclient.APIClient, tbl string) (bool, error) {
-
-	resp, _, err := apiClient.UtilsAPI.Sql(ctx).Body(fmt.Sprintf("show tables like '%v'", tbl)).Execute()
+func tableExists(ctx context.Context, tbl string) bool {
+	_, _, err := apiClient.UtilsAPI.Sql(ctx).Body(fmt.Sprintf("SHOW CREATE TABLE %v", tbl)).Execute()
 	if err != nil {
-		return false, err
+		return false
 	}
-	data := resp[0]["data"].([]interface{})
-	log.Println(data)
-
-	return len(data) > 0 && data[0].(map[string]interface{})["Index"] == tbl, nil
+	return true
 }
 
-func createTable(ctx context.Context, apiClient *openapiclient.APIClient, tbl string) error {
+func createTable(ctx context.Context, tbl string) error {
+	const op = "storage.manticore.createTable"
 
-	log.Println("Creating table", tbl)
 	query := fmt.Sprintf("create table %v(genre text, author text, title text, `text` text, position int, length int) min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl)
 
 	sqlRequest := apiClient.UtilsAPI.Sql(ctx).Body(query)
 	_, _, err := apiClient.UtilsAPI.SqlExecute(sqlRequest)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
 }
