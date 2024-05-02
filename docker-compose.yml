@@ -1,0 +1,20 @@
+services:
+  manticore:
+    container_name: library-manticore
+    image: manticoresearch/manticore
+    ports:
+      - "127.0.0.1:9308:9308"
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - manticore:/var/lib/manticore
+      - manticore:/var/log/manticore
+
+volumes:
+  manticore:
