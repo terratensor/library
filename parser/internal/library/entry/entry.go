@@ -1,20 +1,26 @@
 package entry
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
+
+// PrepareParagraphs срез подготовленных параграфов книги
+type PrepareParagraphs []Entry
 
 type Entry struct {
-	ID       *int64
-	Genre    string
-	Author   string
-	BookName string
-	Text     string
-	Position int
-	Length   int
+	ID       *int64 `json:"id,omitempty"`
+	Genre    string `json:"genre"`
+	Author   string `json:"author"`
+	BookName string `json:"title"`
+	Text     string `json:"text"`
+	Position int    `json:"position"`
+	Length   int    `json:"length"`
 }
 
 type StorageInterface interface {
 	// Bulk index operations Post/bulk
-	Bulk(ctx context.Context, entries []Entry) error
+	Bulk(ctx context.Context, entries *[]Entry) error
 }
 
 type Entries struct {
@@ -28,5 +34,17 @@ func New(store StorageInterface) *Entries {
 }
 
 func (e Entries) Bulk(ctx context.Context, entries []Entry) error {
+	const op = "entry.Entries.Bulk"
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("%s: %w", op, ctx.Err())
+	default:
+	}
+
+	err := e.store.Bulk(ctx, &entries)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
 	return nil
 }

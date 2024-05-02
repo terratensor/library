@@ -2,6 +2,7 @@ package manticore
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	openapiclient "github.com/manticoresoftware/manticoresearch-go"
 	"github.com/terratensor/library/parser/internal/config"
@@ -27,13 +28,14 @@ func New(ctx context.Context, cfg *config.Manticore) (*Client, error) {
 
 	tbl := cfg.Index
 	// Check if table exists in cache
-	exists := tableExists(ctx, tbl)
-	if !exists {
-		// Create table if it doesn't exist
-		if err := createTable(ctx, tbl); err != nil {
-			return nil, fmt.Errorf("%s: %w", op, err)
-		}
+	//exists := tableExists(ctx, tbl)
+	//if !exists {
+	// Create table if it doesn't exist
+	if err := createTable(ctx, tbl); err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+	//}
+
 	return &Client{Index: tbl, apiClient: apiClient}, nil
 }
 
@@ -48,7 +50,7 @@ func tableExists(ctx context.Context, tbl string) bool {
 func createTable(ctx context.Context, tbl string) error {
 	const op = "storage.manticore.createTable"
 
-	query := fmt.Sprintf("create table %v(genre text, author text, title text, `text` text, position int, length int) min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl)
+	query := fmt.Sprintf("create table %v(genre text, author text, title text, `text` text, position int, length int) engine='columnar' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl)
 
 	sqlRequest := apiClient.UtilsAPI.Sql(ctx).Body(query)
 	_, _, err := apiClient.UtilsAPI.SqlExecute(sqlRequest)
@@ -58,8 +60,81 @@ func createTable(ctx context.Context, tbl string) error {
 	return nil
 }
 
-func (c *Client) Bulk(ctx context.Context, entries []entry.Entry) error {
+type Insert struct {
+	Index string      `json:"index"`
+	ID    *int64      `json:"id,omitempty"`
+	Doc   entry.Entry `json:"doc"`
+}
+
+type Root struct {
+	Insert Insert `json:"insert"`
+}
+
+func (c *Client) Bulk(ctx context.Context, entries *[]entry.Entry) error {
+	const op = "storage.manticore.Bulk"
+
+	//var serializedEntries string
+	//var doc map[string]interface{}
+
+	var body strings.Builder
+	//body.WriteString("[")
+	for _, e := range *entries {
+		// Assuming 'e' is of type entry.Entry
+		//doc := map[string]interface{}{
+		//	"genre":    e.Genre,
+		//	"author":   e.Author,
+		//	"title":    e.BookName,
+		//	"text":     e.Text,
+		//	"position": e.Position,
+		//	"length":   e.Length,
+		//}
+
+		//idr := openapiclient.InsertDocumentRequest{
+		//	Index: c.Index,
+		//	Doc:   doc,
+		//}
+
+		//_, r, err := c.apiClient.IndexAPI.Insert(ctx).InsertDocumentRequest(idr).Execute()
+		jsonStr, err := json.Marshal(Root{
+			Insert: Insert{
+				Index: c.Index,
+				Doc:   e,
+			},
+		})
+
+		if err != nil {
+			//fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", err)
+			return fmt.Errorf("%s: %w", op, err)
+		}
+
+		body.WriteString(string(jsonStr))
+		body.WriteString(",\n")
+	}
+	//body.WriteString("]")
+
+	//log.Println(string(jsonStr))
+	//log.Panicln(string(jsonStr))
+
+	//log.Panicln(body)
+	//panic("stop")
+	//if err != nil {
+	//	return fmt.Errorf("%s: %w", op, err)
+	//}
+
+	//fmt.Println(string(jsonStr))
+
+	//log.Println(body.String())
+	_, _, err := c.apiClient.IndexAPI.Bulk(ctx).Body(body.String()).Execute()
+
+	if err != nil {
+		return fmt.Errorf("%s: %v", op, err)
+	}
+	//response from `Insert`: SuccessResponse
+	//fmt.Fprintf(os.Stdout, "Success Response from `IndexAPI.Insert`: %v\n", r)
+
 	return nil
+
+	//return nil
 }
 
 // serverConfigurationURL generates the server configuration URL based on the provided Manticore configuration.

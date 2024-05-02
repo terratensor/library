@@ -54,7 +54,8 @@ func main() {
 	// читаем все файлы в директории
 	files, err := os.ReadDir(cfg.Volume)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("error reading directory", sl.Err(err))
+		os.Exit(1)
 	}
 
 	// Срез ошибок полученных при обработке файлов
@@ -75,9 +76,17 @@ func main() {
 			task := workerpool.NewTask(func(data interface{}) error {
 
 				fmt.Printf("Task %v processed\n", file.Name())
+
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+
 				// обрабатываем файл
 				err := prs.Parse(ctx, n, file, cfg.Volume)
 				if err != nil {
+					logger.Error("error processing file", sl.Err(err))
 					return err
 				}
 				return nil
@@ -96,21 +105,21 @@ func main() {
 }
 
 func setupLogger(env string) *slog.Logger {
-	var log *slog.Logger
+	var logger *slog.Logger
 
 	switch env {
 	case envLocal:
-		log = setupPrettySlog()
+		logger = setupPrettySlog()
 	case envDev:
-		log = slog.New(
+		logger = slog.New(
 			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
 		)
 	case envProd:
-		log = slog.New(
+		logger = slog.New(
 			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
 		)
 	}
-	return log
+	return logger
 }
 
 func setupPrettySlog() *slog.Logger {

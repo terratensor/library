@@ -12,6 +12,8 @@ services:
       memlock:
         soft: -1
         hard: -1
+    environment:
+      - EXTRA=1
     volumes:
       - manticore:/var/lib/manticore
       - manticore:/var/log/manticore
