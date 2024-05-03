@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/terratensor/library/parser/internal/config"
+	"github.com/terratensor/library/parser/internal/library/book"
 	"github.com/terratensor/library/parser/internal/library/entry"
 	"github.com/terratensor/library/parser/internal/parser/docc"
 	"io"
@@ -30,7 +31,6 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 
 	select {
 	case <-ctx.Done():
-		log.Println("ctx.Err()")
 		return ctx.Err()
 	default:
 	}
@@ -40,6 +40,8 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 	var filename = file.Name()
 	var extension = filepath.Ext(filename)
 	var bookName = filename[0 : len(filename)-len(extension)]
+
+	titleList := book.NewTitleList(bookName)
 
 	r, err := docc.NewReader(fp)
 	if err != nil {
@@ -244,7 +246,7 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 		//	}
 		//}
 
-		pars = appendParagraph(b, bookName, position, pars)
+		pars = appendParagraph(b, titleList, position, pars)
 		// Если включен режим разработки
 		//if p.devMode {
 		//	log.Println("stage 100 append")
@@ -273,7 +275,7 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 		//if p.devMode {
 		//	log.Printf("cond 10000: %v", utf8.RuneCountInString(b.String()))
 		//}
-		pars = appendParagraph(b, bookName, position, pars)
+		pars = appendParagraph(b, titleList, position, pars)
 	}
 	b.Reset()
 
@@ -366,12 +368,14 @@ func processTriples(text string) string {
 
 func appendParagraph(
 	b strings.Builder,
-	name string,
+	titleList *book.TitleList,
 	position int,
 	pars entry.PrepareParagraphs,
 ) entry.PrepareParagraphs {
 	parsedParagraph := entry.Entry{
-		BookName: name,
+		Genre:    titleList.Genre,
+		Author:   titleList.Author,
+		BookName: titleList.Title,
 		Text:     b.String(),
 		Position: position,
 		Length:   utf8.RuneCountInString(b.String()),
