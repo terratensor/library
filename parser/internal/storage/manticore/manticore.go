@@ -19,6 +19,16 @@ type Client struct {
 	apiClient *openapiclient.APIClient
 }
 
+type Insert struct {
+	Index string      `json:"index"`
+	ID    *int64      `json:"id,omitempty"`
+	Doc   entry.Entry `json:"doc"`
+}
+
+type Root struct {
+	Insert Insert `json:"insert"`
+}
+
 func New(ctx context.Context, cfg *config.Manticore) (*Client, error) {
 	const op = "storage.manticore.New"
 	// Initialize apiClient
@@ -60,41 +70,11 @@ func createTable(ctx context.Context, tbl string) error {
 	return nil
 }
 
-type Insert struct {
-	Index string      `json:"index"`
-	ID    *int64      `json:"id,omitempty"`
-	Doc   entry.Entry `json:"doc"`
-}
-
-type Root struct {
-	Insert Insert `json:"insert"`
-}
-
 func (c *Client) Bulk(ctx context.Context, entries *[]entry.Entry) error {
 	const op = "storage.manticore.Bulk"
 
-	//var serializedEntries string
-	//var doc map[string]interface{}
-
 	var body strings.Builder
-	//body.WriteString("[")
 	for _, e := range *entries {
-		// Assuming 'e' is of type entry.Entry
-		//doc := map[string]interface{}{
-		//	"genre":    e.Genre,
-		//	"author":   e.Author,
-		//	"title":    e.BookName,
-		//	"text":     e.Text,
-		//	"position": e.Position,
-		//	"length":   e.Length,
-		//}
-
-		//idr := openapiclient.InsertDocumentRequest{
-		//	Index: c.Index,
-		//	Doc:   doc,
-		//}
-
-		//_, r, err := c.apiClient.IndexAPI.Insert(ctx).InsertDocumentRequest(idr).Execute()
 		jsonStr, err := json.Marshal(Root{
 			Insert: Insert{
 				Index: c.Index,
@@ -103,38 +83,20 @@ func (c *Client) Bulk(ctx context.Context, entries *[]entry.Entry) error {
 		})
 
 		if err != nil {
-			//fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", err)
 			return fmt.Errorf("%s: %w", op, err)
 		}
 
 		body.WriteString(string(jsonStr))
 		body.WriteString(",\n")
 	}
-	//body.WriteString("]")
 
-	//log.Println(string(jsonStr))
-	//log.Panicln(string(jsonStr))
-
-	//log.Panicln(body)
-	//panic("stop")
-	//if err != nil {
-	//	return fmt.Errorf("%s: %w", op, err)
-	//}
-
-	//fmt.Println(string(jsonStr))
-
-	//log.Println(body.String())
 	_, _, err := c.apiClient.IndexAPI.Bulk(ctx).Body(body.String()).Execute()
 
 	if err != nil {
 		return fmt.Errorf("%s: %v", op, err)
 	}
-	//response from `Insert`: SuccessResponse
-	//fmt.Fprintf(os.Stdout, "Success Response from `IndexAPI.Insert`: %v\n", r)
 
 	return nil
-
-	//return nil
 }
 
 // serverConfigurationURL generates the server configuration URL based on the provided Manticore configuration.

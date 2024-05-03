@@ -46,21 +46,12 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 	r, err := docc.NewReader(fp)
 	if err != nil {
 		str := fmt.Sprintf("%v, %v", filename, err)
-		log.Println(str)
 		return fmt.Errorf(str)
 	}
 	defer r.Close()
 
 	// position номер параграфа в индексе
 	position := 1
-
-	//newBook, err := p.bs.Create(ctx, book.Book{
-	//	Name:     name,
-	//	Filename: filename,
-	//})
-	//if err != nil {
-	//	log.Println(err)
-	//}
 
 	var pars entry.PrepareParagraphs
 
@@ -78,7 +69,6 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 		// Используем select для выхода по истечении контекста, прерывание выполнения ctrl+c
 		select {
 		case <-ctx.Done():
-			log.Printf("ctx done: %v", ctx.Err())
 			return ctx.Err()
 		default:
 		}
@@ -91,7 +81,6 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 				break
 			} else if err != nil {
 				str := fmt.Sprintf("%v, %v", filename, err)
-				log.Println(str)
 				return fmt.Errorf(str)
 			}
 			// Если строка пустая, то пропускаем
@@ -104,34 +93,14 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 			// Если кол-во символов в тексте больше максимально установленной длины,
 			// записываем текст в буфер большого параграфа, иначе записываем текст в текстовый буфер
 			if utf8.RuneCountInString(text) > p.cfg.MaxParSize {
-				// Если включен режим разработки
-				//if p.devMode {
-				//	log.Println("stage 1 — записываем спарсенный текст в буфер большого параграфа,")
-				//}
 				longParBuilder.WriteString(text)
 			} else {
-				// Если включен режим разработки
-				//if p.devMode {
-				//	log.Println("stage 2 — записываем спарсенный текст в текстовый буфер")
-				//}
 				textBuilder.WriteString(text)
 			}
 		}
 
-		//// Если включен режим разработки
-		//if p.devMode {
-		//	log.Printf("longParBuilder.Len() %v", utf8.RuneCountInString(longParBuilder.String()))
-		//	log.Printf("textBuilder.Len() %v", utf8.RuneCountInString(textBuilder.String()))
-		//	log.Printf("bBuilder.Len() %v", utf8.RuneCountInString(b.String()))
-		//	log.Printf("bufBuilder.len() %v", utf8.RuneCountInString(bufBuilder.String()))
-		//}
-
 		// запись остатка от длинного параграфа в обычный билдер при условии, что остаток менее maxParSize
 		if utf8.RuneCountInString(longParBuilder.String()) > 0 && utf8.RuneCountInString(longParBuilder.String()) < p.cfg.MaxParSize {
-			// Если включен режим разработки
-			//if p.devMode {
-			//	log.Println("stage 3 — запись остатка от длинного параграфа в обычный билдер")
-			//}
 			b.WriteString(longParBuilder.String())
 			longParBuilder.Reset()
 		}
@@ -139,19 +108,11 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 		// разбиваем параграф на 2 части, оптимальной длины и остаток,
 		// остаток сохраняем в longParBuilder, оптимальную часть сохраняем в builder b
 		if utf8.RuneCountInString(longParBuilder.String()) >= p.cfg.MaxParSize {
-			// Если включен режим разработки
-			//if p.devMode {
-			//	log.Println("stage 4 — разбиваем параграф на 2 части, оптимальной длины и остаток")
-			//}
 			p.splitLongParagraph(&longParBuilder, &b)
 		}
 
 		// Если в билдер-буфере есть записанный параграф, то записываем его в обычный билдер b и очищаем билдер-буфер
 		if utf8.RuneCountInString(bufBuilder.String()) > 0 {
-			// Если включен режим разработки
-			//if p.devMode {
-			//	log.Println("stage 5 — записываем bufBuilder в обычный билдер b и очищаем билдер-буфер")
-			//}
 			if utf8.RuneCountInString(bufBuilder.String()) >= p.cfg.MaxParSize {
 				log.Println("stage 6")
 				log.Printf("в билдер буфере длинный параграф %v\r\n", utf8.RuneCountInString(bufBuilder.String()))
@@ -163,22 +124,12 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 
 		// Кол-во символов в билдере, получено от предыдущей или текущей итерации
 		builderLength := utf8.RuneCountInString(b.String())
-		// Если включен режим разработки
-		//if p.devMode {
-		//	log.Printf("builderLength %v", builderLength)
-		//}
+
 		// Кол-во символов в текущем обрабатываемом параграфе, получено из парсера
 		textLength := utf8.RuneCountInString(textBuilder.String())
-		// Если включен режим разработки
-		//if p.devMode {
-		//	log.Printf("textLength %v", textLength)
-		//}
+
 		// Сумма кол-ва символов в предыдущих склеенных и в текущем параграфах
 		concatLength := builderLength + textLength
-		// Если включен режим разработки
-		//if p.devMode {
-		//	log.Printf("concatLength %v", concatLength)
-		//}
 
 		// Если кол-во символов в результирующей строке concatLength менее
 		// минимального значения длины параграфа minParSize,
@@ -188,10 +139,6 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 
 		// и нет длинного параграфа в обработке
 		if concatLength < p.cfg.MinParSize && utf8.RuneCountInString(longParBuilder.String()) == 0 {
-			// Если включен режим разработки
-			//if p.devMode {
-			//	log.Println("stage 7")
-			//}
 			b.WriteString(textBuilder.String())
 			textBuilder.Reset()
 			continue
@@ -205,52 +152,19 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 		if concatLength >= p.cfg.MinParSize &&
 			float64(concatLength) <= float64(p.cfg.OptParSize)*1.05 &&
 			utf8.RuneCountInString(longParBuilder.String()) == 0 {
-			// Если включен режим разработки
-			//if p.devMode {
-			//	log.Println("stage 8")
-			//}
+
 			b.WriteString(textBuilder.String())
 			textBuilder.Reset()
 			continue
 		}
 
 		if concatLength > p.cfg.OptParSize && concatLength <= p.cfg.MaxParSize {
-			// Если включен режим разработки
-			//if p.devMode {
-			//	log.Println("stage 9")
-			//}
 			b.WriteString(textBuilder.String())
 			textBuilder.Reset()
 		}
 
-		// Если включен режим разработки
-		//if p.devMode {
-		//	if utf8.RuneCountInString(b.String()) >= p.maxParSize {
-		//		if utf8.RuneCountInString(longParBuilder.String()) == 0 {
-		//			log.Println("stage 11 — параграф превышает максимальную длину")
-		//			//longParBuilder.WriteString(b.String())
-		//			log.Println(b.String())
-		//			//b.Reset()
-		//			//panic("exit")
-		//
-		//		}
-		//		//log.Println("stage 12 — параграф превышает максимальную длину")
-		//		//log.Printf("параграф превышает максимальную длину: %v", utf8.RuneCountInString(b.String()))
-		//		//log.Printf("параграф превышает максимальную длину: %v", b.String())
-		//		//log.Printf("longParBuilder.Len() %v", utf8.RuneCountInString(longParBuilder.String()))
-		//		//log.Printf("textBuilder.Len() %v", utf8.RuneCountInString(textBuilder.String()))
-		//		//log.Printf("bBuilder.Len() %v", utf8.RuneCountInString(b.String()))
-		//		//log.Printf("bufBuilder.len() %v", utf8.RuneCountInString(bufBuilder.String()))
-		//		//panic("exit")
-		//		//panic(b.String())
-		//	}
-		//}
-
 		pars = appendParagraph(b, titleList, position, pars)
-		// Если включен режим разработки
-		//if p.devMode {
-		//	log.Println("stage 100 append")
-		//}
+
 		b.Reset()
 
 		position++
@@ -271,10 +185,6 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 
 	// Если билдер строки не пустой, записываем оставшийся текст в параграфы и сбрасываем билдер
 	if utf8.RuneCountInString(b.String()) > 0 {
-		// Если включен режим разработки
-		//if p.devMode {
-		//	log.Printf("cond 10000: %v", utf8.RuneCountInString(b.String()))
-		//}
 		pars = appendParagraph(b, titleList, position, pars)
 	}
 	b.Reset()
@@ -289,12 +199,6 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 }
 
 func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strings.Builder) {
-	// Если включен режим разработки
-	//if p.devMode {
-	//	log.Printf("Обрабатываем длинный параграф: %v", utf8.RuneCountInString(longBuilder.String()))
-	//	log.Printf("длина билдер буфера: %v", utf8.RuneCountInString(builder.String()))
-	//}
-
 	result := longBuilder.String()
 	result = strings.TrimPrefix(result, "<div>")
 	result = strings.TrimSuffix(result, "</div>")
@@ -303,33 +207,18 @@ func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strin
 	sentences := strings.SplitAfter(result, ".")
 	//sentences := strings.SplitAfter(result, ".")
 
-	// Если включен режим разработки
-	//if p.devMode {
-	//	log.Printf("В параграфе %v предложений", len(sentences))
-	//}
-
 	longBuilder.Reset()
-	// Если включен режим разработки
-	//if p.devMode {
-	//	log.Printf("сброшен longBuilder.String() %v", longBuilder.String())
-	//}
 
 	var flag bool
 
 	for n, sentence := range sentences {
-		// Если включен режим разработки
-		//if p.devMode {
-		//	log.Printf("предложение длина: %v", utf8.RuneCountInString(sentence))
-		//}
+
 		sentence = strings.TrimSpace(sentence)
 		if n == 0 {
 			builder.WriteString("<div>")
 		}
 		if (utf8.RuneCountInString(builder.String()) + utf8.RuneCountInString(sentence)) < p.cfg.OptParSize {
-			// Если включен режим разработки
-			//if p.devMode {
-			//	log.Printf("sentence %d", n)
-			//}
+
 			builder.WriteString(sentence)
 			builder.WriteString(" ")
 			continue
