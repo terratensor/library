@@ -200,12 +200,16 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 
 func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strings.Builder) {
 	result := longBuilder.String()
-	result = strings.TrimPrefix(result, "<div>")
-	result = strings.TrimSuffix(result, "</div>")
+	result = strings.TrimPrefix(result, "<p>")
+	result = strings.TrimSuffix(result, "</p>")
 
-	// sentences []string Делим параграф на предложения, разделитель точка с пробелом
-	sentences := strings.SplitAfter(result, ".")
+	// sentences []string Делим параграф на предложения,
+	// разделители точка, восклицательный знак и вопросительный знак
 	//sentences := strings.SplitAfter(result, ".")
+	// Split the string using FieldsFunc
+	sentences := strings.FieldsFunc(result, func(r rune) bool {
+		return r == '.' || r == '!' || r == '?'
+	})
 
 	longBuilder.Reset()
 
@@ -215,7 +219,7 @@ func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strin
 
 		sentence = strings.TrimSpace(sentence)
 		if n == 0 {
-			builder.WriteString("<div>")
+			builder.WriteString("<p>")
 		}
 		if (utf8.RuneCountInString(builder.String()) + utf8.RuneCountInString(sentence)) < p.cfg.OptParSize {
 
@@ -225,12 +229,12 @@ func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strin
 		}
 		if !flag {
 			builder.WriteString(strings.TrimSpace(sentence))
-			builder.WriteString("</div>")
+			builder.WriteString("</p>")
 			flag = true
 			if len(sentences) == n+1 {
 				break
 			}
-			longBuilder.WriteString("<div>")
+			longBuilder.WriteString("<p>")
 
 			continue
 		}
@@ -243,16 +247,14 @@ func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strin
 		temp := longBuilder.String()
 		longBuilder.Reset()
 		longBuilder.WriteString(strings.TrimSpace(temp))
-		longBuilder.WriteString("</div>")
+		longBuilder.WriteString("</p>")
 	}
 }
 
 // processTriples функция обработки троеточий в итоговом спарсенном параграфе,
 // приводит все троеточия к виду …
 func processTriples(text string) string {
-	text = strings.Replace(text, ". . .", "…", -1)
-	text = strings.Replace(text, "...", "…", -1)
-	return text
+	return strings.NewReplacer(". . .", "…", "...", "…").Replace(text)
 }
 
 func appendParagraph(
