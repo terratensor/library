@@ -18,9 +18,10 @@ type Config struct {
 }
 
 type Manticore struct {
-	Index string `yaml:"index" env-default:"library"`
-	Host  string `yaml:"host" env-default:"localhost"`
-	Port  string `yaml:"port" env-default:"9312"`
+	Engine string `yaml:"engine" env-default:"rowwise"`
+	Index  string `yaml:"index" env-default:"library"`
+	Host   string `yaml:"host" env-default:"localhost"`
+	Port   string `yaml:"port" env-default:"9312"`
 }
 
 func MustLoad() *Config {

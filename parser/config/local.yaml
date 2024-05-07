@@ -2,6 +2,7 @@ env: "local" # Окружение - local, dev или prod
 concurrency: 20
 volume: "../volume/"
 manticore:
+  engine: "rowwise"
   host: "localhost"
   index: "library"
   port: 9308
