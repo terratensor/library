@@ -26,9 +26,9 @@ type Manticore struct {
 
 func MustLoad() *Config {
 	// Получаем путь до конфиг-файла из env-переменной CONFIG_PATH
-	configPath := os.Getenv("CONFIG_PATH")
+	configPath := os.Getenv("LIBRARY_CONFIG_PATH")
 	if configPath == "" {
-		log.Fatal("CONFIG_PATH environment variable is not set")
+		log.Fatal("LIBRARY_CONFIG_PATH environment variable is not set")
 	}
 
 	// Проверяем существование конфиг-файла
