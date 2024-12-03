@@ -51,9 +51,8 @@ services:
       - EXTRA=1
     volumes:
       # - manticore2:/var/lib/manticore
-      # - manticore2:/var/log/manticore
-      - ./manticore/var/log:/var/log/manticore
-      - ./manticore/var/lib:/var/lib/manticore
+      # - manticore2:/var/log/manticore      
+      - ./manticore/library:/var/lib/manticore/library
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
@@ -72,9 +71,6 @@ secrets:
     file: ./secrets/app_db_password
   app_cookie_validation_key:
     file: ./secrets/app_cookie_validation_key
-
-volumes:
-  manticore2:
 
 networks:
   traefik-public:
