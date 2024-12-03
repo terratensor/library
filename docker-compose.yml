@@ -1,4 +1,36 @@
 services:
+  app:
+    image: ${REGISTRY}/common-library-app:${IMAGE_TAG}
+    networks:      
+      - library-net
+    environment:
+      APP_ENV: dev
+      COMPOSER_ALLOW_SUPERUSER: 1
+      FRONTEND_URL: 'http://localhost:8030'
+      GH_REPO_URL: 'https://github.com/terratensor/regular-library'
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD_FILE: /run/secrets/app_db_password
+      POSTGRES_DB: common-library
+      PAGE_SIZE: 50
+      URL_SHORTENER_HOST: url-shortener:8000
+      URL_SHORTENER_URL: http://localhost
+      COOKIE_DOMAIN: localhost
+      COOKIE_VALIDATION_KEY_FILE: /run/secrets/app_cookie_validation_key
+      MANTICORE_DB_NAME_COMMON: library
+      MANTICORE_MAX_MATCHES: 1000
+      SHORT_LINK_ENABLE: 0
+      CLEAN_DESIGN: 1
+    secrets:
+      - app_db_password
+      - app_cookie_validation_key
+    # volumes:
+    #   - ~/.composer-docker/cache:/root/.composer/cache:delegated
+    #   - ./app:/app:delegated
+    ports:
+      - '8030:80'
+
+
   manticore:
     container_name: library-manticore
     image: manticoresearch/manticore
@@ -18,8 +50,10 @@ services:
     environment:
       - EXTRA=1
     volumes:
-      - manticore:/var/lib/manticore
-      - manticore:/var/log/manticore
+      # - manticore2:/var/lib/manticore
+      # - manticore2:/var/log/manticore
+      - ./manticore/var/log:/var/log/manticore
+      - ./manticore/var/lib:/var/lib/manticore
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
@@ -33,11 +67,18 @@ services:
       - traefik.http.middlewares.library-headers.headers.addvaryheader=true
       - traefik.http.routers.library-search.middlewares=library-headers
 
+secrets:
+  app_db_password:
+    file: ./secrets/app_db_password
+  app_cookie_validation_key:
+    file: ./secrets/app_cookie_validation_key
+
 volumes:
-  manticore:
+  manticore2:
 
 networks:
   traefik-public:
     external: true
   library-net:
     name: library-net
+    # external: true

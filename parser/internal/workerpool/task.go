@@ -1,6 +1,8 @@
 package workerpool
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Task struct {
 	Err  error
@@ -15,4 +17,11 @@ func NewTask(f func(interface{}) error, data interface{}) *Task {
 func process(workerID int, task *Task) {
 	fmt.Printf("Worker %d processes task %v\n", workerID, task.Data)
 	task.Err = task.f(task.Data)
+	if task.Err != nil {
+		appendErrorToLog("./error_log.txt", task.Err)
+	}
+}
+
+func appendErrorToLog(logFilePath string, errStr error) {
+	// TODO записываем ошибку в файл
 }

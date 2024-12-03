@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"log/slog"
+	"os"
+	"os/signal"
+
 	"github.com/terratensor/library/parser/internal/config"
-	"github.com/terratensor/library/parser/internal/errorlog"
 	"github.com/terratensor/library/parser/internal/lib/logger/handlers/slogpretty"
 	"github.com/terratensor/library/parser/internal/lib/logger/sl"
 	"github.com/terratensor/library/parser/internal/library/entry"
@@ -12,10 +16,6 @@ import (
 	"github.com/terratensor/library/parser/internal/storage/manticore"
 	"github.com/terratensor/library/parser/internal/utils"
 	"github.com/terratensor/library/parser/internal/workerpool"
-	"log"
-	"log/slog"
-	"os"
-	"os/signal"
 )
 
 const (
@@ -59,13 +59,13 @@ func main() {
 	}
 
 	// Срез ошибок полученных при обработке файлов
-	var errors []string
+	// var errors []string
 
 	var allTask []*workerpool.Task
 
 	// Цикл обработки файлов
 	for n, file := range files {
-		if file.IsDir() == false {
+		if !file.IsDir() {
 
 			// если файл gitignore, то ничего не делаем пропускаем и продолжаем цикл
 			if file.Name() == ".gitignore" {
@@ -84,7 +84,7 @@ func main() {
 				}
 
 				// обрабатываем файл
-				err := prs.Parse(ctx, n, file, cfg.Volume)
+				err = prs.Parse(ctx, n, file, cfg.Volume)
 				if err != nil {
 					logger.Error("error processing file", sl.Err(err))
 					return err
@@ -93,14 +93,13 @@ func main() {
 			}, file)
 
 			allTask = append(allTask, task)
-			errors = append(errors, fmt.Sprintln(err))
 		}
 	}
 	defer utils.Duration(utils.Track("Обработка завершена за "))
 	pool := workerpool.NewPool(allTask, cfg.Concurrency)
 	pool.Run()
 
-	errorlog.Save(errors)
+	// errorlog.Save(errors)
 	log.Println("all files done")
 }
 

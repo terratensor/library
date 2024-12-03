@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	openapiclient "github.com/manticoresoftware/manticoresearch-go"
 	"github.com/terratensor/library/parser/internal/config"
 	"github.com/terratensor/library/parser/internal/library/entry"
-	"strings"
 )
 
 var _ entry.StorageInterface = &Client{}
@@ -39,13 +40,13 @@ func New(ctx context.Context, cfg *config.Manticore) (*Client, error) {
 	tbl := cfg.Index
 	engine := cfg.Engine
 	// Check if table exists in cache
-	//exists := tableExists(ctx, tbl)
-	//if !exists {
-	// Create table if it doesn't exist
-	if err := createTable(ctx, engine, tbl); err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+	exists := tableExists(ctx, tbl)
+	if !exists {
+		// Create table if it doesn't exist
+		if err := createTable(ctx, engine, tbl); err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
 	}
-	//}
 
 	return &Client{Index: tbl, apiClient: apiClient}, nil
 }
@@ -61,7 +62,7 @@ func tableExists(ctx context.Context, tbl string) bool {
 func createTable(ctx context.Context, engine string, tbl string) error {
 	const op = "storage.manticore.createTable"
 
-	query := fmt.Sprintf("create table %v(genre string, author string, title string attribute indexed, `text` text, position int, length int) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
+	query := fmt.Sprintf("create table %v(genre string attribute indexed, author string attribute indexed, title string attribute indexed, `text` text, position int, length int) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
 
 	sqlRequest := apiClient.UtilsAPI.Sql(ctx).Body(query)
 	_, _, err := apiClient.UtilsAPI.SqlExecute(sqlRequest)
