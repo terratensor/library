@@ -50,9 +50,10 @@ services:
     environment:
       - EXTRA=1
     volumes:
-      # - manticore2:/var/lib/manticore
-      # - manticore2:/var/log/manticore      
-      - ./manticore/library:/var/lib/manticore/library
+      - manticore:/var/lib/manticore
+      - manticore:/var/log/manticore      
+        # - ./manticore/var/log:/var/log/manticore
+        # - ./manticore/var/lib:/var/lib/manticore
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
@@ -66,6 +67,9 @@ services:
       - traefik.http.middlewares.library-headers.headers.addvaryheader=true
       - traefik.http.routers.library-search.middlewares=library-headers
 
+volumes:
+  manticore:
+
 secrets:
   app_db_password:
     file: ./secrets/app_db_password
@@ -77,4 +81,4 @@ networks:
     external: true
   library-net:
     name: library-net
-    # external: true
+    external: true

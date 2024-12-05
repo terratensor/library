@@ -3,16 +3,18 @@ package parser
 import (
 	"context"
 	"fmt"
-	"github.com/terratensor/library/parser/internal/config"
-	"github.com/terratensor/library/parser/internal/library/book"
-	"github.com/terratensor/library/parser/internal/library/entry"
-	"github.com/terratensor/library/parser/internal/parser/docc"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/google/uuid"
+	"github.com/terratensor/library/parser/internal/config"
+	"github.com/terratensor/library/parser/internal/library/book"
+	"github.com/terratensor/library/parser/internal/library/entry"
+	"github.com/terratensor/library/parser/internal/parser/docc"
 )
 
 type Parser struct {
@@ -42,6 +44,8 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 	var bookName = filename[0 : len(filename)-len(extension)]
 
 	titleList := book.NewTitleList(bookName)
+	titleList.SourceUUID = uuid.New()
+	titleList.Source = filename
 
 	r, err := docc.NewReader(fp)
 	if err != nil {
@@ -192,6 +196,9 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 	// Если batchSizeCount меньше batchSize, то записываем оставшиеся параграфы
 	if len(pars) > 0 {
 		err = p.storage.Bulk(ctx, pars)
+		if err != nil {
+			log.Printf("log bulk insert error query: %v \r\n", err)
+		}
 	}
 
 	//log.Printf("%v #%v done", newBook.Filename, n+1)
@@ -262,12 +269,14 @@ func appendParagraph(
 	pars entry.PrepareParagraphs,
 ) entry.PrepareParagraphs {
 	parsedParagraph := entry.Entry{
-		Genre:    titleList.Genre,
-		Author:   titleList.Author,
-		BookName: titleList.Title,
-		Text:     b.String(),
-		Position: position,
-		Length:   utf8.RuneCountInString(b.String()),
+		SourceUUID: titleList.SourceUUID,
+		Source:     titleList.Source,
+		Genre:      titleList.Genre,
+		Author:     titleList.Author,
+		BookName:   titleList.Title,
+		Text:       b.String(),
+		Position:   position,
+		Length:     utf8.RuneCountInString(b.String()),
 	}
 
 	pars = append(pars, parsedParagraph)

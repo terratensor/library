@@ -1,11 +1,17 @@
 package book
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/google/uuid"
+)
 
 type TitleList struct {
-	Genre  string
-	Author string
-	Title  string
+	SourceUUID uuid.UUID
+	Source     string
+	Genre      string
+	Author     string
+	Title      string
 }
 
 // NewTitleList extracts the genre, author, and title from a string and returns a BookTitle object.
