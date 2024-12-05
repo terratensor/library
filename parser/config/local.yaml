@@ -1,0 +1,12 @@
+env: "local" # Окружение - local, dev или prod
+concurrency: 20
+volume: "../volume/"
+manticore:
+  engine: "rowwise"
+  host: "localhost"
+  index: "library"
+  port: 9308
+batch_size: 5000 # размер пакета по умолчанию (default batch size)
+min_par_size: 300 #граница минимального размера параграфа в символах, если 0, то без склейки параграфов
+opt_par_size: 1800 #граница оптимального размера параграфа в символах, если 0, то без склейки параграфов
+max_par_size: 3500 #граница максимального размера параграфа в символах, если 0, то без склейки параграфов
