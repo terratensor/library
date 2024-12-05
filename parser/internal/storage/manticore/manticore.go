@@ -62,7 +62,7 @@ func tableExists(ctx context.Context, tbl string) bool {
 func createTable(ctx context.Context, engine string, tbl string) error {
 	const op = "storage.manticore.createTable"
 
-	query := fmt.Sprintf("create table %v(genre string attribute indexed, author string attribute indexed, title string attribute indexed, `text` text, position int, length int) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
+	query := fmt.Sprintf("create table %v(genre text, author text, title text, `text` text, position int, length int) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
 
 	sqlRequest := apiClient.UtilsAPI.Sql(ctx).Body(query)
 	_, _, err := apiClient.UtilsAPI.SqlExecute(sqlRequest)
