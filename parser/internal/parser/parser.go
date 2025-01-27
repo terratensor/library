@@ -54,6 +54,95 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 	}
 	defer r.Close()
 
+	// Парсим текст из docx файла, если получим ошибку, то надо запустить brokenXML парсер
+	err = p.runMainBuilder(ctx, r, filename, titleList)
+	if err != nil {
+		log.Println(err)
+	}
+	//log.Printf("%v #%v done", newBook.Filename, n+1)
+	return nil
+}
+
+func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strings.Builder) {
+	result := longBuilder.String()
+	result = strings.TrimPrefix(result, "<div>")
+	result = strings.TrimSuffix(result, "</div>")
+
+	// sentences []string Делим параграф на предложения, разделитель точка с пробелом
+	sentences := strings.SplitAfter(result, ".")
+	//sentences := regexp.MustCompile(`[.!?]`).Split(result, -1)
+
+	longBuilder.Reset()
+
+	var flag bool
+
+	for n, sentence := range sentences {
+
+		sentence = strings.TrimSpace(sentence)
+		if n == 0 {
+			builder.WriteString("<div>")
+		}
+		if (utf8.RuneCountInString(builder.String()) + utf8.RuneCountInString(sentence)) < p.cfg.OptParSize {
+
+			builder.WriteString(sentence)
+			builder.WriteString(" ")
+			continue
+		}
+		if !flag {
+			builder.WriteString(strings.TrimSpace(sentence))
+			builder.WriteString("</div>")
+			flag = true
+			if len(sentences) == n+1 {
+				break
+			}
+			longBuilder.WriteString("<div>")
+
+			continue
+		}
+
+		longBuilder.WriteString(sentence)
+		longBuilder.WriteString(" ")
+
+	}
+	if utf8.RuneCountInString(longBuilder.String()) > 0 {
+		temp := longBuilder.String()
+		longBuilder.Reset()
+		longBuilder.WriteString(strings.TrimSpace(temp))
+		longBuilder.WriteString("</div>")
+	}
+}
+
+// processTriples функция обработки троеточий в итоговом спарсенном параграфе,
+// приводит все троеточия к виду …
+func processTriples(text string) string {
+	text = strings.Replace(text, ". . .", "…", -1)
+	text = strings.Replace(text, "...", "…", -1)
+	return text
+}
+
+func appendParagraph(
+	b strings.Builder,
+	titleList *book.TitleList,
+	position int,
+	pars entry.PrepareParagraphs,
+) entry.PrepareParagraphs {
+	parsedParagraph := entry.Entry{
+		SourceUUID: titleList.SourceUUID,
+		Source:     titleList.Source,
+		Genre:      titleList.Genre,
+		Author:     titleList.Author,
+		BookName:   titleList.Title,
+		Text:       b.String(),
+		Position:   position,
+		Length:     utf8.RuneCountInString(b.String()),
+	}
+
+	pars = append(pars, parsedParagraph)
+	return pars
+}
+
+func (p *Parser) runMainBuilder(ctx context.Context, r *docc.Reader, filename string, titleList *book.TitleList) error {
+
 	// position номер параграфа в индексе
 	position := 1
 
@@ -85,6 +174,8 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 				break
 			} else if err != nil {
 				str := fmt.Sprintf("%v, %v", filename, err)
+				log.Println("there")
+				// ParceBrokenXML(fp)
 				return fmt.Errorf(str)
 			}
 			// Если строка пустая, то пропускаем
@@ -176,7 +267,7 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 
 		// Записываем пакетам по batchSize параграфов
 		if batchSizeCount == p.cfg.BatchSize-1 {
-			err = p.storage.Bulk(ctx, pars)
+			err := p.storage.Bulk(ctx, pars)
 			if err != nil {
 				log.Printf("log bulk insert error query: %v \r\n", err)
 			}
@@ -195,90 +286,11 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 
 	// Если batchSizeCount меньше batchSize, то записываем оставшиеся параграфы
 	if len(pars) > 0 {
-		err = p.storage.Bulk(ctx, pars)
+		err := p.storage.Bulk(ctx, pars)
 		if err != nil {
 			log.Printf("log bulk insert error query: %v \r\n", err)
 		}
 	}
 
-	//log.Printf("%v #%v done", newBook.Filename, n+1)
 	return nil
-}
-
-func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strings.Builder) {
-	result := longBuilder.String()
-	result = strings.TrimPrefix(result, "<div>")
-	result = strings.TrimSuffix(result, "</div>")
-
-	// sentences []string Делим параграф на предложения, разделитель точка с пробелом
-	sentences := strings.SplitAfter(result, ".")
-	//sentences := regexp.MustCompile(`[.!?]`).Split(result, -1)
-
-	longBuilder.Reset()
-
-	var flag bool
-
-	for n, sentence := range sentences {
-
-		sentence = strings.TrimSpace(sentence)
-		if n == 0 {
-			builder.WriteString("<div>")
-		}
-		if (utf8.RuneCountInString(builder.String()) + utf8.RuneCountInString(sentence)) < p.cfg.OptParSize {
-
-			builder.WriteString(sentence)
-			builder.WriteString(" ")
-			continue
-		}
-		if !flag {
-			builder.WriteString(strings.TrimSpace(sentence))
-			builder.WriteString("</div>")
-			flag = true
-			if len(sentences) == n+1 {
-				break
-			}
-			longBuilder.WriteString("<div>")
-
-			continue
-		}
-
-		longBuilder.WriteString(sentence)
-		longBuilder.WriteString(" ")
-
-	}
-	if utf8.RuneCountInString(longBuilder.String()) > 0 {
-		temp := longBuilder.String()
-		longBuilder.Reset()
-		longBuilder.WriteString(strings.TrimSpace(temp))
-		longBuilder.WriteString("</div>")
-	}
-}
-
-// processTriples функция обработки троеточий в итоговом спарсенном параграфе,
-// приводит все троеточия к виду …
-func processTriples(text string) string {
-	text = strings.Replace(text, ". . .", "…", -1)
-	text = strings.Replace(text, "...", "…", -1)
-	return text
-}
-
-func appendParagraph(
-	b strings.Builder,
-	titleList *book.TitleList,
-	position int,
-	pars entry.PrepareParagraphs,
-) entry.PrepareParagraphs {
-	parsedParagraph := entry.Entry{
-		SourceUUID: titleList.SourceUUID,
-		Source:     titleList.Source,
-		Genre:      titleList.Genre,
-		Author:     titleList.Author,
-		BookName:   titleList.Title,
-		Text:       b.String(),
-		Position:   position,
-		Length:     utf8.RuneCountInString(b.String()),
-	}
-
-	pars = append(pars, parsedParagraph)
-	return pars
 }
