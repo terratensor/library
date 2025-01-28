@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -19,14 +20,25 @@ import (
 )
 
 type Parser struct {
-	cfg     *config.Config
-	storage *entry.Entries
+	cfg      *config.Config
+	storage  *entry.Entries
+	reBase64 *regexp.Regexp
 }
 
+// Глобальная переменная для хранения скомпилированного регулярного выражения
+var reBase64 *regexp.Regexp
+
 func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
+
+	if cfg.Filters.CutBase64 {
+		// Улучшенное регулярное выражение для поиска base64-кодированных данных
+		reBase64 = regexp.MustCompile(`(?:[A-Za-z0-9+/]{40,}={0,2}|iVBORw0KGgo[^"]+)`)
+	}
+
 	return &Parser{
-		cfg:     cfg,
-		storage: storage,
+		cfg:      cfg,
+		storage:  storage,
+		reBase64: reBase64,
 	}
 }
 
@@ -48,25 +60,30 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
-	r, err := docc.NewReader(fp)
+	r, err := docc.NewReader(fp, p.reBase64)
 	if err != nil {
-		str := fmt.Sprintf("%v, %v", filename, err)
-		return fmt.Errorf(str)
+		return fmt.Errorf("%v, %v", filename, err)
 	}
 	defer r.Close()
 
 	// Парсим текст из docx файла, если получим ошибку, то надо запустить brokenXML парсер
 	err = p.runMainBuilder(ctx, r, filename, titleList)
 	if err != nil {
-		log.Println(err)
-		br, err := brokendocx.NewReader(fp)
-		if err != nil {
-			return fmt.Errorf("ошибка при создании Reader: %v", err)
-		}
-		// запускаем дополнительный билдер
-		log.Printf("Запускаем дополнительный билдер: %v", filename)
-		err = p.runAdditionalBuilder(ctx, br, filename, titleList)
-		if err != nil {
+		// Если установлен режим в конфигурации BrokenDocxMode, то запускаем дополнительный билдер
+		if p.cfg.BrokenDocxMode {
+			log.Println(err)
+			br, err := brokendocx.NewReader(fp, p.reBase64)
+			if err != nil {
+				return fmt.Errorf("ошибка при создании Reader: %v", err)
+			}
+			// запускаем дополнительный билдер
+			log.Printf("Запускаем дополнительный билдер: %v", filename)
+			err = p.runAdditionalBuilder(ctx, br, filename, titleList)
+			if err != nil {
+				return fmt.Errorf("%v, %v", filename, err)
+			}
+		} else {
+			log.Println("Для обработки сломанных документов включите режим BrokenDocxMode в конфигурации.")
 			return fmt.Errorf("%v, %v", filename, err)
 		}
 	}
@@ -136,14 +153,22 @@ func appendParagraph(
 	titleList *book.TitleList,
 	position int,
 	pars entry.PrepareParagraphs,
+	cutBase64Recursive bool,
 ) entry.PrepareParagraphs {
+
+	text := b.String()
+	// Если установлен режмим в конфигурации RecursiveCutBase64, то вырезаем все base64 данные из получившегося параграфа
+	if cutBase64Recursive {
+		// Запускаем функцию, которая рекурсивно вырезает все base64 данные из получившегося параграфа
+		text = recursiveCutBase64(text)
+	}
 	parsedParagraph := entry.Entry{
 		SourceUUID: titleList.SourceUUID,
 		Source:     titleList.Source,
 		Genre:      titleList.Genre,
 		Author:     titleList.Author,
 		BookName:   titleList.Title,
-		Text:       b.String(),
+		Text:       text,
 		Position:   position,
 		Length:     utf8.RuneCountInString(b.String()),
 	}
@@ -184,10 +209,7 @@ func (p *Parser) runMainBuilder(ctx context.Context, r *docc.Reader, filename st
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				str := fmt.Sprintf("%v, %v", filename, err)
-				// log.Println("there")
-				// ParceBrokenXML(fp)
-				return fmt.Errorf(str)
+				return fmt.Errorf("%v, %v", filename, err)
 			}
 			// Если строка пустая, то пропускаем
 			// и переходим к следующей итерации цикла
@@ -269,7 +291,7 @@ func (p *Parser) runMainBuilder(ctx context.Context, r *docc.Reader, filename st
 			textBuilder.Reset()
 		}
 
-		pars = appendParagraph(b, titleList, position, pars)
+		pars = appendParagraph(b, titleList, position, pars, p.cfg.Filters.CutBase64Recursive)
 
 		b.Reset()
 
@@ -291,7 +313,7 @@ func (p *Parser) runMainBuilder(ctx context.Context, r *docc.Reader, filename st
 
 	// Если билдер строки не пустой, записываем оставшийся текст в параграфы и сбрасываем билдер
 	if utf8.RuneCountInString(b.String()) > 0 {
-		pars = appendParagraph(b, titleList, position, pars)
+		pars = appendParagraph(b, titleList, position, pars, p.cfg.Filters.CutBase64Recursive)
 	}
 	b.Reset()
 
@@ -338,10 +360,7 @@ func (p *Parser) runAdditionalBuilder(ctx context.Context, r *brokendocx.Reader,
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				str := fmt.Sprintf("%v, %v", filename, err)
-				log.Println("there")
-				// ParceBrokenXML(fp)
-				return fmt.Errorf(str)
+				return fmt.Errorf("%v, %v", filename, err)
 			}
 			// Если строка пустая, то пропускаем
 			// и переходим к следующей итерации цикла
@@ -423,7 +442,7 @@ func (p *Parser) runAdditionalBuilder(ctx context.Context, r *brokendocx.Reader,
 			textBuilder.Reset()
 		}
 
-		pars = appendParagraph(b, titleList, position, pars)
+		pars = appendParagraph(b, titleList, position, pars, p.cfg.Filters.CutBase64Recursive)
 
 		b.Reset()
 
@@ -445,7 +464,7 @@ func (p *Parser) runAdditionalBuilder(ctx context.Context, r *brokendocx.Reader,
 
 	// Если билдер строки не пустой, записываем оставшийся текст в параграфы и сбрасываем билдер
 	if utf8.RuneCountInString(b.String()) > 0 {
-		pars = appendParagraph(b, titleList, position, pars)
+		pars = appendParagraph(b, titleList, position, pars, p.cfg.Filters.CutBase64Recursive)
 	}
 	b.Reset()
 
@@ -458,4 +477,21 @@ func (p *Parser) runAdditionalBuilder(ctx context.Context, r *brokendocx.Reader,
 	}
 
 	return nil
+}
+
+// Функция для рекурсивного вырезания совпадений по регулярному выражению
+func recursiveCutBase64(input string) string {
+	// Компилируем регулярное выражение
+	reBase64 := regexp.MustCompile(`(?:[A-Za-z0-9+/]{40,}={0,2}|iVBORw0KGgo[^"]+)`)
+
+	// Если совпадений нет, возвращаем исходную строку
+	if !reBase64.MatchString(input) {
+		return input
+	}
+
+	// Вырезаем все совпадения из строки
+	input = reBase64.ReplaceAllString(input, "")
+
+	// Рекурсивно вызываем функцию для оставшейся строки
+	return recursiveCutBase64(input)
 }

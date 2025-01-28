@@ -10,17 +10,18 @@ import (
 
 // Reader представляет собой структуру для чтения .docx по параграфам.
 type Reader struct {
-	texts []string
-	index int
+	texts    []string
+	index    int
+	reBase64 *regexp.Regexp
 }
 
 // NewReader создает новый Reader для файла .docx.
-func NewReader(filepath string) (*Reader, error) {
-	texts, err := ParceBrokenXML(filepath)
+func NewReader(filepath string, reBase64 *regexp.Regexp) (*Reader, error) {
+	texts, err := ParceBrokenXML(filepath, reBase64)
 	if err != nil {
 		return nil, err
 	}
-	return &Reader{texts: texts, index: 0}, nil
+	return &Reader{texts: texts, index: 0, reBase64: reBase64}, nil
 }
 
 // Read читает файл .docx по параграфам.
@@ -41,7 +42,7 @@ func normalizePath(path string) string {
 
 // ParceBrokenXML читает файл .docx и возвращает текст из тегов <w:t> построчно.
 // Возвращает ошибку, если файл не удалось прочитать или распарсить.
-func ParceBrokenXML(filepath string) ([]string, error) {
+func ParceBrokenXML(filepath string, reBase64 *regexp.Regexp) ([]string, error) {
 	// Открываем .docx как ZIP-архив
 	zipReader, err := zip.OpenReader(filepath)
 	if err != nil {
@@ -76,8 +77,8 @@ func ParceBrokenXML(filepath string) ([]string, error) {
 	// Регулярное выражение для поиска текста внутри тегов <w:t>
 	reText := regexp.MustCompile(`<w:t>(.*?)</w:t>`)
 
-	// Регулярное выражение для поиска base64-кодированных данных
-	reBase64 := regexp.MustCompile(`[A-Za-z0-9+/]{40,}={0,2}`)
+	// // Улучшенное регулярное выражение для поиска base64-кодированных данных
+	// reBase64 := regexp.MustCompile(`(?:[A-Za-z0-9+/]{40,}={0,2}|iVBORw0KGgo[^"]+)`)
 
 	// Поиск всех совпадений текста
 	matches := reText.FindAllSubmatch(documentXML, -1)
@@ -89,8 +90,8 @@ func ParceBrokenXML(filepath string) ([]string, error) {
 	for _, match := range matches {
 		if len(match) > 1 {
 			text := string(match[1])
-			// Удаляем base64-кодированные данные
-			if !reBase64.MatchString(text) {
+			// Удаляем base64-кодированные данные если включен режим cut_base64 и переданно регулярное выражение
+			if reBase64 != nil && !reBase64.MatchString(text) {
 				texts = append(texts, text)
 			}
 		}
