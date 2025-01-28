@@ -43,6 +43,7 @@ type Reader struct {
 	docx     *zip.ReadCloser
 	xml      io.ReadCloser
 	dec      *xml.Decoder
+	reBase64 *regexp.Regexp
 }
 
 type FootnoteReference struct {
@@ -51,8 +52,9 @@ type FootnoteReference struct {
 
 // NewReader создаёт Reader структуру.
 // После прочтения, структура Reader должна быть закрыта Close().
-func NewReader(docxPath string) (*Reader, error) {
+func NewReader(docxPath string, reBase64 *regexp.Regexp) (*Reader, error) {
 	r := new(Reader)
+	r.reBase64 = reBase64
 	r.docxPath = docxPath
 	ext := strings.ToLower(filepath.Ext(docxPath))
 	if ext != ".docx" {
@@ -82,7 +84,7 @@ func (r *Reader) Read() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	p, err := seekParagraph(r.dec)
+	p, err := seekParagraph(r.dec, r.reBase64)
 	if err != nil {
 		return "", err
 	}
@@ -116,7 +118,7 @@ func (r *Reader) Close() error {
 	return nil
 }
 
-func seekParagraph(dec *xml.Decoder) (string, error) {
+func seekParagraph(dec *xml.Decoder, reBase64 *regexp.Regexp) (string, error) {
 	var t string
 	var tag, headerTag string
 	var fr FootnoteReference
@@ -128,6 +130,10 @@ func seekParagraph(dec *xml.Decoder) (string, error) {
 		switch tt := token.(type) {
 		case xml.EndElement:
 			if tt.Name.Local == "p" {
+				// Удаляем base64-кодированные данные
+				if reBase64 != nil && reBase64.MatchString(t) {
+					t = ""
+				}
 				// вырезаем мусор
 				t = cutOutTrash(t)
 				// Удаляет лишние пробелы в начал и в конце строки
