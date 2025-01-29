@@ -96,86 +96,6 @@ func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string
 	return nil
 }
 
-func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strings.Builder) {
-	result := longBuilder.String()
-	result = strings.TrimPrefix(result, "<div>")
-	result = strings.TrimSuffix(result, "</div>")
-
-	// sentences []string Делим параграф на предложения, разделитель точка с пробелом
-	sentences := strings.SplitAfter(result, ".")
-	//sentences := regexp.MustCompile(`[.!?]`).Split(result, -1)
-
-	longBuilder.Reset()
-
-	var flag bool
-
-	for n, sentence := range sentences {
-
-		sentence = strings.TrimSpace(sentence)
-		if n == 0 {
-			builder.WriteString("<div>")
-		}
-		if (utf8.RuneCountInString(builder.String()) + utf8.RuneCountInString(sentence)) < p.cfg.OptParSize {
-
-			builder.WriteString(sentence)
-			builder.WriteString(" ")
-			continue
-		}
-		if !flag {
-			builder.WriteString(strings.TrimSpace(sentence))
-			builder.WriteString("</div>")
-			flag = true
-			if len(sentences) == n+1 {
-				break
-			}
-			longBuilder.WriteString("<div>")
-
-			continue
-		}
-
-		longBuilder.WriteString(sentence)
-		longBuilder.WriteString(" ")
-
-	}
-	if utf8.RuneCountInString(longBuilder.String()) > 0 {
-		temp := longBuilder.String()
-		longBuilder.Reset()
-		longBuilder.WriteString(strings.TrimSpace(temp))
-		longBuilder.WriteString("</div>")
-	}
-}
-
-// processTriples функция обработки троеточий в итоговом спарсенном параграфе,
-// приводит все троеточия к виду …
-func processTriples(text string) string {
-	text = strings.Replace(text, ". . .", "…", -1)
-	text = strings.Replace(text, "...", "…", -1)
-	return text
-}
-
-func appendParagraph(b strings.Builder, titleList *book.TitleList, position int, pars entry.PrepareParagraphs, cutBase64Recursive bool) entry.PrepareParagraphs {
-
-	text := b.String()
-	// Если установлен режмим в конфигурации RecursiveCutBase64, то вырезаем все base64 данные из получившегося параграфа
-	if cutBase64Recursive {
-		// Запускаем функцию, которая рекурсивно вырезает все base64 данные из получившегося параграфа
-		text = recursiveCutBase64(text)
-	}
-	parsedParagraph := entry.Entry{
-		SourceUUID: titleList.SourceUUID,
-		Source:     titleList.Source,
-		Genre:      titleList.Genre,
-		Author:     titleList.Author,
-		BookName:   titleList.Title,
-		Text:       text,
-		Position:   position,
-		Length:     utf8.RuneCountInString(b.String()),
-	}
-
-	pars = append(pars, parsedParagraph)
-	return pars
-}
-
 func (p *Parser) runBuilder(ctx context.Context, r Reader, filename string, titleList *book.TitleList) error {
 
 	// position номер параграфа в индексе
@@ -327,6 +247,92 @@ func (p *Parser) runBuilder(ctx context.Context, r Reader, filename string, titl
 	return nil
 }
 
+func (p *Parser) splitLongParagraph(longBuilder *strings.Builder, builder *strings.Builder) {
+	result := longBuilder.String()
+	// result = strings.TrimPrefix(result, "<div>")
+	// result = strings.TrimSuffix(result, "</div>")
+
+	// sentences []string Делим параграф на предложения, разделитель точка с пробелом
+	// sentences := strings.SplitAfter(result, ".")
+	//sentences := regexp.MustCompile(`[.!?]`).Split(result, -1)
+
+	// Используем улучшенную функцию, для разбиения параграфа на предложения
+	sentences := splitMessageOnSentences(result)
+
+	longBuilder.Reset()
+
+	var flag bool
+
+	for n, sentence := range sentences {
+
+		sentence = strings.TrimSpace(sentence)
+		// if n == 0 {
+		// 	builder.WriteString("<div>")
+		// }
+		if (utf8.RuneCountInString(builder.String()) + utf8.RuneCountInString(sentence)) < p.cfg.OptParSize {
+
+			builder.WriteString(sentence)
+			builder.WriteString(" ")
+			continue
+		}
+		if !flag {
+			builder.WriteString(strings.TrimSpace(sentence))
+			// builder.WriteString("</div>")
+			builder.WriteString("\n\n")
+			flag = true
+			if len(sentences) == n+1 {
+				break
+			}
+			// longBuilder.WriteString("<div>")
+
+			continue
+		}
+
+		longBuilder.WriteString(sentence)
+		longBuilder.WriteString(" ")
+
+	}
+
+	if utf8.RuneCountInString(longBuilder.String()) > 0 {
+		temp := longBuilder.String()
+		longBuilder.Reset()
+		longBuilder.WriteString(strings.TrimSpace(temp))
+		// longBuilder.WriteString("</div>")
+		longBuilder.WriteString("\n\n")
+	}
+}
+
+// processTriples функция обработки троеточий в итоговом спарсенном параграфе,
+// приводит все троеточия к виду …
+func processTriples(text string) string {
+	text = strings.Replace(text, ". . .", "…", -1)
+	text = strings.Replace(text, "...", "…", -1)
+	return text
+}
+
+func appendParagraph(b strings.Builder, titleList *book.TitleList, position int, pars entry.PrepareParagraphs, cutBase64Recursive bool) entry.PrepareParagraphs {
+
+	text := b.String()
+	// Если установлен режмим в конфигурации RecursiveCutBase64, то вырезаем все base64 данные из получившегося параграфа
+	if cutBase64Recursive {
+		// Запускаем функцию, которая рекурсивно вырезает все base64 данные из получившегося параграфа
+		text = recursiveCutBase64(text)
+	}
+	parsedParagraph := entry.Entry{
+		SourceUUID: titleList.SourceUUID,
+		Source:     titleList.Source,
+		Genre:      titleList.Genre,
+		Author:     titleList.Author,
+		BookName:   titleList.Title,
+		Text:       text,
+		Position:   position,
+		Length:     utf8.RuneCountInString(b.String()),
+	}
+
+	pars = append(pars, parsedParagraph)
+	return pars
+}
+
 // Функция для рекурсивного вырезания совпадений по регулярному выражению
 func recursiveCutBase64(input string) string {
 	// Компилируем регулярное выражение
@@ -342,4 +348,52 @@ func recursiveCutBase64(input string) string {
 
 	// Рекурсивно вызываем функцию для оставшейся строки
 	return recursiveCutBase64(input)
+}
+
+// splitMessageOnSentences разделяет текст на предложения по знакам препинания.
+// Функция принимает строку `chunk` и возвращает слайс строк, где каждый элемент — это отдельное предложение.
+func splitMessageOnSentences(chunk string) []string {
+	// punct — это множество (map) знаков препинания, которые обозначают конец предложения.
+	punct := map[rune]struct{}{'.': {}, '!': {}, '?': {}, '…': {}}
+
+	// Разбиваем входной текст на слова с помощью strings.Fields.
+	// strings.Fields разделяет строку по пробелам и возвращает слайс слов.
+	words := strings.Fields(chunk)
+
+	// result — это слайс, в который будут добавляться готовые предложения.
+	var result []string
+	// builder используется для построения предложений.
+	var builder strings.Builder
+
+	// Проходим по каждому слову в слайсе words.
+	for _, word := range words {
+		// Определяем последний символ в слове.
+		lastRune, _ := utf8.DecodeLastRuneInString(word)
+
+		// Добавляем текущее слово и пробел в builder.
+		builder.WriteString(word)
+		builder.WriteString(" ")
+
+		// Если последний символ слова является знаком препинания из множества punct,
+		// это означает, что предложение закончилось.
+		if _, exists := punct[lastRune]; exists {
+			// Добавляем собранное предложение в result, удаляя лишние пробелы с помощью strings.TrimSpace.
+			result = append(result, strings.TrimSpace(builder.String()))
+			// Сбрасываем builder для построения следующего предложения.
+			builder.Reset()
+		}
+	}
+
+	// Если после завершения цикла в builder остались данные,
+	// это означает, что последнее предложение не завершено знаком препинания.
+	// Добавляем его в result.
+	if builder.Len() > 0 {
+		result = append(result, strings.TrimSpace(builder.String()))
+	}
+	// if len(result) > 0 {
+	// 	return splitBlocks(result, msgsign, " ", limit)
+	// }
+
+	// Возвращаем слайс предложений.
+	return result
 }
