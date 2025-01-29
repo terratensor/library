@@ -74,25 +74,60 @@ func ParceBrokenXML(filepath string, reBase64 *regexp.Regexp) ([]string, error) 
 		return nil, fmt.Errorf("файл word/document.xml не найден в архиве")
 	}
 
-	// Регулярное выражение для поиска текста внутри тегов <w:t>
-	reText := regexp.MustCompile(`<w:t>(.*?)</w:t>`)
+	// Регулярное выражение для поиска параграфов <w:p>
+	reParagraph := regexp.MustCompile(`<w:p[^>]*>(.*?)</w:p>`)
+
+	// Улучшенное регулярное выражение для поиска текста внутри тегов <w:t>
+	reText := regexp.MustCompile(`<w:t[^>]*>(.*?)</w:t>`)
 
 	// // Улучшенное регулярное выражение для поиска base64-кодированных данных
 	// reBase64 := regexp.MustCompile(`(?:[A-Za-z0-9+/]{40,}={0,2}|iVBORw0KGgo[^"]+)`)
 
 	// Поиск всех совпадений текста
-	matches := reText.FindAllSubmatch(documentXML, -1)
+	// matches := reText.FindAllSubmatch(documentXML, -1)
+
+	// Поиск всех параграфов
+	paragraphMatches := reParagraph.FindAllSubmatch(documentXML, -1)
 
 	// Срез для хранения текста
 	var texts []string
 
-	// Извлечение текста из совпадений и фильтрация артефактов
-	for _, match := range matches {
-		if len(match) > 1 {
-			text := string(match[1])
-			// Удаляем base64-кодированные данные если включен режим cut_base64 и переданно регулярное выражение
-			if reBase64 != nil && !reBase64.MatchString(text) {
-				texts = append(texts, text)
+	// // Извлечение текста из совпадений и фильтрация артефактов
+	// for _, match := range matches {
+	// 	if len(match) > 1 {
+	// 		text := string(match[1])
+	// 		// Удаляем base64-кодированные данные если включен режим cut_base64 и переданно регулярное выражение
+	// 		if reBase64 != nil && !reBase64.MatchString(text) {
+	// 			text = text + "\n\n"
+	// 			texts = append(texts, text)
+	// 		}
+	// 	}
+	// }
+
+	// Обработка каждого параграфа
+	for _, paragraphMatch := range paragraphMatches {
+		if len(paragraphMatch) > 1 {
+			paragraphContent := string(paragraphMatch[1])
+
+			// Поиск текста внутри параграфа
+			textMatches := reText.FindAllSubmatch([]byte(paragraphContent), -1)
+
+			// Соединение текста из всех тегов <w:t> в одну строку
+			var paragraphText strings.Builder
+			for _, textMatch := range textMatches {
+				if len(textMatch) > 1 {
+					text := string(textMatch[1])
+					// Удаляем base64-кодированные данные
+					if reBase64 != nil && !reBase64.MatchString(text) {
+						paragraphText.WriteString(text)
+					}
+				}
+			}
+
+			// Добавляем результат в срез, если текст не пустой
+			if paragraphText.Len() > 0 {
+				paragraphText.WriteString("\n\n")
+				texts = append(texts, paragraphText.String())
 			}
 		}
 	}
