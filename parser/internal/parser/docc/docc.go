@@ -171,10 +171,10 @@ func seekParagraph(dec *xml.Decoder, reBase64 *regexp.Regexp) (string, error) {
 
 				switch tag {
 				case "b":
-					t = t + fmt.Sprintf("<b>%v</b>", text)
+					t = t + fmt.Sprintf("**%v**", text)
 					tag = ""
 				case "i":
-					t = t + fmt.Sprintf("<i>%v</i>", text)
+					t = t + fmt.Sprintf("*%v*", text)
 					tag = ""
 				default:
 					t = t + text
@@ -202,25 +202,25 @@ func cutOutTrash(t string) string {
 func wrapperHtmlTag(headerTag string, t string) string {
 	switch headerTag {
 	case "h1":
-		t = fmt.Sprintf("<h1>%v</h1>", t)
+		t = fmt.Sprintf("# %v\n\n", t)
 		headerTag = ""
 	case "h2":
-		t = fmt.Sprintf("<h2>%v</h2>", t)
+		t = fmt.Sprintf("## %v\n\n", t)
 		headerTag = ""
 	case "h3":
-		t = fmt.Sprintf("<h3>%v</h3>", t)
+		t = fmt.Sprintf("### %v\n\n", t)
 		headerTag = ""
 	case "h4":
-		t = fmt.Sprintf("<h4>%v</h4>", t)
+		t = fmt.Sprintf("#### %v\n\n", t)
 		headerTag = ""
 	case "h5":
-		t = fmt.Sprintf("<h5>%v</h5>", t)
+		t = fmt.Sprintf("##### %v\n\n", t)
 		headerTag = ""
 	case "h6":
-		t = fmt.Sprintf("<h6>%v</h6>", t)
+		t = fmt.Sprintf("###### %v\n\n", t)
 		headerTag = ""
 	default:
-		t = fmt.Sprintf("<div>%v</div>", t)
+		t = fmt.Sprintf("%v\n\n", t)
 	}
 	return t
 }
