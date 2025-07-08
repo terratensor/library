@@ -35,6 +35,15 @@ func (r *Reader) Read() (string, error) {
 	return text, nil
 }
 
+// Close реализует метод Close для соответствия интерфейсу io.Closer.
+// В текущей реализации не выполняет никаких действий, так как все данные уже в памяти.
+func (r *Reader) Close() error {
+	// Очищаем срез текстов для освобождения памяти
+	r.texts = nil
+	r.index = 0
+	return nil
+}
+
 // normalizePath заменяет все обратные слэши на прямые.
 func normalizePath(path string) string {
 	return strings.ReplaceAll(path, "\\", "/")
