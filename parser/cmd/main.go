@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/terratensor/library/parser/internal/config"
 	"github.com/terratensor/library/parser/internal/lib/logger/handlers/slogpretty"
@@ -51,8 +52,8 @@ func main() {
 	// Инициализация парсера
 	prs := parser.NewParser(cfg, storage)
 
-	// читаем все файлы в директории
-	files, err := os.ReadDir(cfg.Volume)
+	// читаем все файлы в директории и поддиректориях
+	files, paths, err := findFiles(cfg.Volume)
 	if err != nil {
 		logger.Error("error reading directory", sl.Err(err))
 		os.Exit(1)
@@ -65,35 +66,38 @@ func main() {
 
 	// Цикл обработки файлов
 	for n, file := range files {
-		if !file.IsDir() {
+		// добавляем задание в пул
+		task := workerpool.NewTask(func(data interface{}) error {
+			fileData := data.(struct {
+				file os.DirEntry
+				path string
+				n    int
+			})
 
-			// если файл gitignore, то ничего не делаем пропускаем и продолжаем цикл
-			if file.Name() == ".gitignore" {
-				continue
+			fmt.Printf("Processing file %v\n", fileData.file.Name())
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
 			}
 
-			// добавляем задание в пул
-			task := workerpool.NewTask(func(data interface{}) error {
+			// Обрабатываем файл (парсер сам определит тип файла)
+			err = prs.Parse(ctx, fileData.n, fileData.file, filepath.Dir(fileData.path))
+			if err != nil {
+				logger.Error("error processing file",
+					slog.String("filename", fileData.file.Name()),
+					sl.Err(err))
+				return err
+			}
+			return nil
+		}, struct {
+			file os.DirEntry
+			path string
+			n    int
+		}{file, paths[n], n})
 
-				fmt.Printf("Task %v processed\n", file.Name())
-
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				default:
-				}
-
-				// обрабатываем файл
-				err = prs.Parse(ctx, n, file, cfg.Volume)
-				if err != nil {
-					logger.Error("error processing file", sl.Err(err))
-					return err
-				}
-				return nil
-			}, file)
-
-			allTask = append(allTask, task)
-		}
+		allTask = append(allTask, task)
 	}
 	defer utils.Duration(utils.Track("Обработка завершена за "))
 	pool := workerpool.NewPool(allTask, cfg.Concurrency)
@@ -131,4 +135,29 @@ func setupPrettySlog() *slog.Logger {
 	handler := opts.NewPrettyHandler(os.Stdout)
 
 	return slog.New(handler)
+}
+
+// Функция для рекурсивного поиска всех файлов в директории и поддиректориях (кроме исключений)
+func findFiles(rootDir string) ([]os.DirEntry, []string, error) {
+	var files []os.DirEntry
+	var paths []string
+
+	err := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Пропускаем директории и файлы из исключений (например, .gitignore)
+		if !d.IsDir() && d.Name() != ".gitignore" {
+			files = append(files, d)
+			paths = append(paths, path)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return files, paths, nil
 }
