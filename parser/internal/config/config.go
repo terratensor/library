@@ -17,6 +17,8 @@ type Config struct {
 	OptParSize     int       `yaml:"opt_par_size" env-default:"1800"`
 	MaxParSize     int       `yaml:"max_par_size" env-default:"3500"`
 	BrokenDocxMode bool      `yaml:"broken_docx_mode" env-default:"false"`
+	PDFMode        bool      `yaml:"pdf_mode" env-default:"false"`
+	EPUBMode       bool      `yaml:"epub_mode" env-default:"false"`
 	Filters        Filters   `yaml:"filters"`
 }
 

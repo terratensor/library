@@ -34,7 +34,6 @@ type Reader interface {
 }
 
 func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
-
 	if cfg.Filters.CutBase64 {
 		// Улучшенное регулярное выражение для поиска base64-кодированных данных
 		reBase64 = regexp.MustCompile(`(?:[A-Za-z0-9+/]{40,}={0,2}|iVBORw0KGgo[^"]+)`)
@@ -48,52 +47,95 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 }
 
 func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string) error {
-
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	fp := filepath.Clean(fmt.Sprintf("%v%v", path, file.Name()))
-
-	var filename = file.Name()
-	var extension = filepath.Ext(filename)
-	var bookName = filename[0 : len(filename)-len(extension)]
+	fp := filepath.Clean(filepath.Join(path, file.Name()))
+	filename := file.Name()
+	extension := strings.ToLower(filepath.Ext(filename))
+	bookName := filename[:len(filename)-len(extension)]
 
 	titleList := book.NewTitleList(bookName)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
-	r, err := docc.NewReader(fp, p.reBase64)
+	switch extension {
+	case ".docx":
+		return p.parseDocx(ctx, fp, filename)
+	case ".pdf":
+		return p.parsePDF(ctx, fp, filename)
+	case ".epub":
+		return p.parseEPUB(ctx, fp, filename)
+	default:
+		return fmt.Errorf("unsupported file format: %s", extension)
+	}
+}
+
+func (p *Parser) parseDocx(ctx context.Context, filePath, filename string) error {
+	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	titleList.SourceUUID = uuid.New()
+	titleList.Source = filename
+
+	// Пытаемся обработать как обычный docx
+	r, err := docc.NewReader(filePath, p.reBase64)
 	if err != nil {
 		return fmt.Errorf("%v, %v", filename, err)
 	}
 	defer r.Close()
 
-	// Парсим текст из docx файла, если получим ошибку, то надо запустить brokenXML парсер
 	err = p.runBuilder(ctx, r, filename, titleList)
 	if err != nil {
-		// Если установлен режим в конфигурации BrokenDocxMode, то запускаем дополнительный билдер
 		if p.cfg.BrokenDocxMode {
-			log.Println(err)
-			br, err := brokendocx.NewReader(fp, p.reBase64)
-			if err != nil {
-				return fmt.Errorf("ошибка при создании Reader: %v", err)
-			}
-			// запускаем дополнительный билдер
-			log.Printf("Запускаем дополнительный билдер: %v", filename)
-			err = p.runBuilder(ctx, br, filename, titleList)
-			if err != nil {
-				return fmt.Errorf("%v, %v", filename, err)
-			}
-		} else {
-			log.Println("Для обработки сломанных документов включите режим BrokenDocxMode в конфигурации.")
-			return fmt.Errorf("%v, %v", filename, err)
+			log.Printf("Failed to parse as normal DOCX, trying broken DOCX parser: %v", err)
+			return p.parseBrokenDocx(ctx, filePath, filename, titleList)
 		}
+		return fmt.Errorf("%v, %v", filename, err)
 	}
-	//log.Printf("%v #%v done", newBook.Filename, n+1)
 	return nil
+}
+
+func (p *Parser) parseBrokenDocx(ctx context.Context, filePath, filename string, titleList *book.TitleList) error {
+	br, err := brokendocx.NewReader(filePath, p.reBase64)
+	if err != nil {
+		return fmt.Errorf("failed to create broken DOCX reader: %v", err)
+	}
+	defer br.Close()
+
+	log.Printf("Using broken DOCX parser for: %v", filename)
+	err = p.runBuilder(ctx, br, filename, titleList)
+	if err != nil {
+		return fmt.Errorf("broken DOCX parser failed for %v: %v", filename, err)
+	}
+	return nil
+}
+
+func (p *Parser) parsePDF(ctx context.Context, filePath, filename string) error {
+	if !p.cfg.PDFMode {
+		return fmt.Errorf("PDF processing is disabled in config")
+	}
+
+	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	titleList.SourceUUID = uuid.New()
+	titleList.Source = filename
+
+	// Заглушка - возвращаем ошибку, что функционал еще не реализован
+	return fmt.Errorf("PDF parser is not implemented yet")
+}
+
+func (p *Parser) parseEPUB(ctx context.Context, filePath, filename string) error {
+	if !p.cfg.EPUBMode {
+		return fmt.Errorf("EPUB processing is disabled in config")
+	}
+
+	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	titleList.SourceUUID = uuid.New()
+	titleList.Source = filename
+
+	// Заглушка - возвращаем ошибку, что функционал еще не реализован
+	return fmt.Errorf("EPUB parser is not implemented yet")
 }
 
 func (p *Parser) runBuilder(ctx context.Context, r Reader, filename string, titleList *book.TitleList) error {
