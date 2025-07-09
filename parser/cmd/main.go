@@ -52,58 +52,53 @@ func main() {
 	// Инициализация парсера
 	prs := parser.NewParser(cfg, storage)
 
-	// читаем все файлы в директории и поддиректориях
-	files, paths, err := findFiles(cfg.Volume)
-	if err != nil {
-		logger.Error("error reading directory", sl.Err(err))
-		os.Exit(1)
-	}
+	// Новый код для обработки tar-архивов
+	if isTarArchive(cfg.Volume) {
+		if err := processTarArchive(ctx, prs, cfg, logger); err != nil {
+			logger.Error("error processing tar archive", sl.Err(err))
+			os.Exit(1)
+		}
+	} else {
+		// Старый код для обработки обычных файлов
+		files, paths, err := findFiles(cfg.Volume)
+		if err != nil {
+			logger.Error("error reading directory", sl.Err(err))
+			os.Exit(1)
+		}
 
-	// Срез ошибок полученных при обработке файлов
-	// var errors []string
-
-	var allTask []*workerpool.Task
-
-	// Цикл обработки файлов
-	for n, file := range files {
-		// добавляем задание в пул
-		task := workerpool.NewTask(func(data interface{}) error {
-			fileData := data.(struct {
+		var allTask []*workerpool.Task
+		for n, file := range files {
+			task := workerpool.NewTask(func(data interface{}) error {
+				fileData := data.(struct {
+					file os.DirEntry
+					path string
+					n    int
+				})
+				fmt.Printf("Processing file %v\n", fileData.file.Name())
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+				err = prs.Parse(ctx, fileData.file, filepath.Dir(fileData.path))
+				if err != nil {
+					logger.Error("error processing file",
+						slog.String("filename", fileData.file.Name()),
+						sl.Err(err))
+					return err
+				}
+				return nil
+			}, struct {
 				file os.DirEntry
 				path string
 				n    int
-			})
-
-			fmt.Printf("Processing file %v\n", fileData.file.Name())
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			// Обрабатываем файл (парсер сам определит тип файла)
-			err = prs.Parse(ctx, fileData.file, filepath.Dir(fileData.path))
-			if err != nil {
-				logger.Error("error processing file",
-					slog.String("filename", fileData.file.Name()),
-					sl.Err(err))
-				return err
-			}
-			return nil
-		}, struct {
-			file os.DirEntry
-			path string
-			n    int
-		}{file, paths[n], n})
-
-		allTask = append(allTask, task)
+			}{file, paths[n], n})
+			allTask = append(allTask, task)
+		}
+		defer utils.Duration(utils.Track("Обработка завершена за "))
+		pool := workerpool.NewPool(allTask, cfg.Concurrency)
+		pool.Run()
 	}
-	defer utils.Duration(utils.Track("Обработка завершена за "))
-	pool := workerpool.NewPool(allTask, cfg.Concurrency)
-	pool.Run()
-
-	// errorlog.Save(errors)
 	log.Println("all files done")
 }
 
@@ -135,6 +130,22 @@ func setupPrettySlog() *slog.Logger {
 	handler := opts.NewPrettyHandler(os.Stdout)
 
 	return slog.New(handler)
+}
+
+// Новые вспомогательные функции
+func isTarArchive(path string) bool {
+	ext := filepath.Ext(path)
+	return ext == ".tar" || ext == ".tar.gz"
+}
+
+func processTarArchive(ctx context.Context, prs *parser.Parser, cfg *config.Config, logger *slog.Logger) error {
+	file, err := os.Open(cfg.Volume)
+	if err != nil {
+		return fmt.Errorf("error opening tar file: %v", err)
+	}
+	defer file.Close()
+
+	return prs.ProcessTar(ctx, file, cfg.Concurrency)
 }
 
 // Функция для рекурсивного поиска всех файлов в директории и поддиректориях (кроме исключений)

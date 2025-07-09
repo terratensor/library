@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -33,6 +35,13 @@ type Reader interface {
 	Read() (string, error)
 }
 
+// FileInfo содержит информацию о файле для обработки
+type FileInfo struct {
+	TempPath  string // временный путь к файлу
+	OrigName  string // оригинальное имя файла
+	Extension string // расширение файла
+}
+
 func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 	if cfg.Filters.CutBase64 {
 		// Улучшенное регулярное выражение для поиска base64-кодированных данных
@@ -45,6 +54,132 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		reBase64: reBase64,
 	}
 }
+
+// ProcessTar обрабатывает tar-архив параллельно
+func (p *Parser) ProcessTar(ctx context.Context, tarStream io.Reader, workers int) error {
+	tr := tar.NewReader(tarStream)
+	tasks := make(chan FileInfo, workers)
+	errCh := make(chan error, 1)
+	var wg sync.WaitGroup
+
+	// Запускаем worker-ов
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for task := range tasks {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					if err := p.processFile(ctx, task); err != nil {
+						select {
+						case errCh <- err:
+						default:
+						}
+					}
+				}
+			}
+		}()
+	}
+
+	defer close(tasks)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-errCh:
+			return err
+		default:
+			hdr, err := tr.Next()
+			if err == io.EOF {
+				wg.Wait()
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+
+			if hdr.Typeflag == tar.TypeReg {
+				ext := filepath.Ext(hdr.Name)
+				if ext != ".docx" && ext != ".pdf" && ext != ".epub" {
+					continue
+				}
+
+				tmpFile, err := os.CreateTemp("", "doc_*.tmp")
+				if err != nil {
+					return err
+				}
+
+				if _, err := io.Copy(tmpFile, tr); err != nil {
+					tmpFile.Close()
+					os.Remove(tmpFile.Name())
+					return err
+				}
+				tmpFile.Close()
+
+				tasks <- FileInfo{
+					TempPath:  tmpFile.Name(),
+					OrigName:  hdr.Name,
+					Extension: ext,
+				}
+			}
+		}
+	}
+}
+
+// processFile обрабатывает один файл из архива
+func (p *Parser) processFile(ctx context.Context, info FileInfo) error {
+	defer os.Remove(info.TempPath)
+
+	file := &dirEntry{
+		name:  filepath.Base(info.TempPath),
+		isDir: false,
+	}
+
+	// Модифицированный Parse с поддержкой оригинального имени
+	return p.ParseWithOrigName(ctx, file, filepath.Dir(info.TempPath), info.OrigName)
+}
+
+// ParseWithOrigName - модифицированная версия Parse с поддержкой оригинального имени
+func (p *Parser) ParseWithOrigName(ctx context.Context, file os.DirEntry, path, origName string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	fp := filepath.Clean(filepath.Join(path, file.Name()))
+	filename := origName // Используем оригинальное имя
+	extension := strings.ToLower(filepath.Ext(filename))
+	bookName := filename[:len(filename)-len(extension)]
+
+	titleList := book.NewTitleList(bookName)
+	titleList.SourceUUID = uuid.New()
+	titleList.Source = filename
+
+	switch extension {
+	case ".docx":
+		return p.parseDocx(ctx, fp, filename)
+	case ".pdf":
+		return p.parsePDF(ctx, fp, filename)
+	case ".epub":
+		return p.parseEPUB(ctx, fp, filename)
+	default:
+		return fmt.Errorf("unsupported file format: %s", extension)
+	}
+}
+
+// dirEntry реализует os.DirEntry для временных файлов
+type dirEntry struct {
+	name  string
+	isDir bool
+}
+
+func (d *dirEntry) Name() string               { return d.name }
+func (d *dirEntry) IsDir() bool                { return d.isDir }
+func (d *dirEntry) Type() os.FileMode          { return 0 }
+func (d *dirEntry) Info() (os.FileInfo, error) { return nil, nil }
 
 func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error {
 	select {
