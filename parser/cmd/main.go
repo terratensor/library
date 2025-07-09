@@ -83,7 +83,7 @@ func main() {
 			}
 
 			// Обрабатываем файл (парсер сам определит тип файла)
-			err = prs.Parse(ctx, fileData.n, fileData.file, filepath.Dir(fileData.path))
+			err = prs.Parse(ctx, fileData.file, filepath.Dir(fileData.path))
 			if err != nil {
 				logger.Error("error processing file",
 					slog.String("filename", fileData.file.Name()),

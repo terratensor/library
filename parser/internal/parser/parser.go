@@ -46,7 +46,7 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 	}
 }
 
-func (p *Parser) Parse(ctx context.Context, n int, file os.DirEntry, path string) error {
+func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
