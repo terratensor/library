@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	openapiclient "github.com/manticoresoftware/manticoresearch-go"
 	"github.com/terratensor/library/parser/internal/config"
@@ -100,10 +102,24 @@ func (c *Client) Bulk(ctx context.Context, entries *[]entry.Entry) error {
 		body.WriteString(",\n")
 	}
 
-	_, _, err := c.apiClient.IndexAPI.Bulk(ctx).Body(body.String()).Execute()
+	const maxRetries = 1000
+	const retryDelay = 100 * time.Millisecond
 
-	if err != nil {
-		return fmt.Errorf("%s: %v", op, err)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, _, err := c.apiClient.IndexAPI.Bulk(ctx).Body(body.String()).Execute()
+		if err == nil {
+			if attempt > 0 {
+				log.Printf("Successfully inserted data into Manticore after %d attempts", attempt+1)
+			}
+			break
+		}
+		if attempt < maxRetries-1 {
+			log.Printf("Failed to insert data into Manticore, retrying... (attempt %d/%d)", attempt+1, maxRetries)
+			log.Printf("Error: %v", err)
+			time.Sleep(retryDelay)
+			continue
+		}
+
 	}
 
 	return nil
