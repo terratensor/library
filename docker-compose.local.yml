@@ -1,0 +1,47 @@
+services:
+
+  manticore:
+    container_name: library-manticore
+    image: manticoresearch/manticore
+    ports:
+      - "127.0.0.1:9308:9308"
+    networks:
+      - traefik-public
+      - library-net
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+      memlock:
+        soft: -1
+        hard: -1
+    environment:
+      - EXTRA=1
+    volumes:
+      - ./manticore/data:/var/lib/manticore
+      - ./manticore/logs:/var/log/manticore
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-public
+      - traefik.http.routers.library-search.rule=Host(`library.localhost`)
+      - traefik.http.routers.library-search.entryPoints=http
+      - traefik.http.services.library-search.loadBalancer.server.port=9308
+      - traefik.http.middlewares.library-headers.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH
+      - traefik.http.middlewares.library-headers.headers.accesscontrolalloworiginlist=*
+      - traefik.http.middlewares.library-headers.headers.accesscontrolallowheaders=*
+      - traefik.http.middlewares.library-headers.headers.accesscontrolmaxage=100
+      - traefik.http.middlewares.library-headers.headers.addvaryheader=true
+      - traefik.http.routers.library-search.middlewares=library-headers
+
+secrets:
+  app_db_password:
+    file: ./secrets/app_db_password
+  app_cookie_validation_key:
+    file: ./secrets/app_cookie_validation_key
+
+networks:
+  traefik-public:
+    external: true
+  library-net:
+    name: library-net
