@@ -1,6 +1,6 @@
 env: "local" # Окружение - local, dev или prod
 concurrency: 20
-volume: "../volume/"
+volume: "../common/"
 manticore:
   engine: "rowwise"
   host: "localhost"

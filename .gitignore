@@ -1,5 +1,6 @@
 .idea
 volume/*
+common
 manticore/*
 build/*
 backup/*

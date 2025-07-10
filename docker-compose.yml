@@ -50,10 +50,12 @@ services:
     environment:
       - EXTRA=1
     volumes:
-      - manticore:/var/lib/manticore
-      - manticore:/var/log/manticore
-        # - ./manticore/var/log:/var/log/manticore
-        # - ./manticore/var/lib:/var/lib/manticore
+      - ./manticore/data:/var/lib/manticore
+      - ./manticore/logs:/var/log/manticore
+      # - manticore:/var/lib/manticore
+      # - manticore:/var/log/manticore
+      # - ./manticore/var/log:/var/log/manticore
+      # - ./manticore/var/lib:/var/lib/manticore
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
@@ -67,8 +69,8 @@ services:
       - traefik.http.middlewares.library-headers.headers.addvaryheader=true
       - traefik.http.routers.library-search.middlewares=library-headers
 
-volumes:
-  manticore:
+# volumes:
+#   manticore:
 
 
 secrets:
