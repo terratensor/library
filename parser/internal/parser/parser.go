@@ -497,16 +497,17 @@ func appendParagraph(b strings.Builder, titleList *book.TitleList, position int,
 		text = recursiveCutBase64(text)
 	}
 	parsedParagraph := entry.Entry{
-		SourceUUID: titleList.SourceUUID,
-		Source:     titleList.Source,
-		Genre:      titleList.Genre,
-		Author:     titleList.Author,
-		BookName:   titleList.Title,
-		Text:       text,
-		Position:   position,
-		Length:     utf8.RuneCountInString(b.String()),
-		CreatedAt:  time.Now().Unix(),
-		UpdatedAt:  time.Now().Unix(),
+		SourceUUID:   titleList.SourceUUID,
+		Source:       titleList.Source,
+		Genre:        titleList.Genre,
+		Author:       titleList.Author,
+		BookName:     titleList.Title,
+		BookNameAttr: titleList.Title,
+		Text:         text,
+		Position:     position,
+		Length:       utf8.RuneCountInString(b.String()),
+		CreatedAt:    time.Now().Unix(),
+		UpdatedAt:    time.Now().Unix(),
 	}
 
 	pars = append(pars, parsedParagraph)

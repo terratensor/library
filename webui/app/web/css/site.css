@@ -398,6 +398,11 @@ footer .container-fluid {
 .icons {
     color: rgba(var(--bs-link-color-rgb), var(--bs-link-opacity, 1));
     text-decoration: none;
-    font-size: 1.1rem;
+    font-size: 1rem;
     cursor: pointer;
+}
+
+.card-header .breadcrumb {
+    background-color: transparent;
+    margin-bottom: 0;
 }

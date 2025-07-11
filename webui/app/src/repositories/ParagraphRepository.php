@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace src\repositories;
 
+use Yii;
 use src\forms\SearchForm;
 use src\models\Paragraph;
 use Manticoresearch\Table;
@@ -80,10 +81,24 @@ class ParagraphRepository
             ],
         );
 
-        // $search->filter('genre', 'in', "Биографии и Мемуары");
-        // $search->filter('author', 'in', "Ленин Владимир");
-        // $search->filter('title', 'in', "Быть!");
+        if ($form->genre !== '') {
+            $search->filter('genre', 'in', $form->genre);
+        }
 
+        if ($form->author !== '') {
+            $search->filter('author', 'in', $form->author);
+        }
+
+        if ($form->title !== '') {
+            $search->filter('title_attr', 'in', $form->title);
+        }
+
+        return $search;
+    }
+
+    public function matchAll()
+    {
+        $search = $this->client->search(['body' => ['table' => 'library2025', 'query' => ['match_all' => '']]], true);
         return $search;
     }
 

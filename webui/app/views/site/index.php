@@ -3,11 +3,13 @@
 use app\widgets\ScrollWidget;
 use app\widgets\SearchResultsSummary;
 use src\forms\SearchForm;
+use src\helpers\SearchHelper;
 use src\helpers\SearchResultHelper;
 use src\helpers\TextProcessor;
 use src\models\Paragraph;
 use src\repositories\ParagraphDataProvider;
 use yii\bootstrap5\ActiveForm;
+use yii\bootstrap5\Breadcrumbs;
 use yii\bootstrap5\Html;
 use yii\bootstrap5\LinkPager;
 use yii\data\Pagination;
@@ -70,6 +72,12 @@ $inputTemplate = '<div class="input-group mb-2">
           ]
         ); ?>
         <?= Html::hiddenInput('page', Yii::$app->request->get('page', 1)) ?>
+        <!-- Добавляем скрытые поля для сохранения фильтров -->
+        <?= Html::hiddenInput('search[genre]', $model->genre) ?>
+        <?= Html::hiddenInput('search[author]', $model->author) ?>
+        <?= Html::hiddenInput('search[title]', $model->title) ?>
+        <?= Html::hiddenInput('search[matching]', $model->matching) ?>
+        <?= Html::hiddenInput('search[singleLineMode]', $model->singleLineMode ? '1' : '0') ?>
         <div class="d-flex align-items-center">
           <?= $form->field($model, 'query', [
             'inputTemplate' => $inputTemplate,
@@ -152,13 +160,23 @@ $inputTemplate = '<div class="input-group mb-2">
                 <?php foreach ($paragraphs as $paragraph): ?>
                   <div class="card mt-4">
                     <div class="card-header d-flex justify-content-between">
-                      <div>
-                        <?= Html::a($paragraph->genre, ['site/index', 'genre' => $paragraph->genre], ['class' => 'btn btn-link']); ?>
-                        /
-                        <?= Html::a($paragraph->author, ['site/index', 'author' => $paragraph->author], ['class' => 'btn btn-link']); ?>
-                        /
-                        <?= Html::a($paragraph->title, ['site/index', 'title' => $paragraph->title], ['class' => 'btn btn-link']); ?>
-                      </div>
+                      <?= Breadcrumbs::widget([
+                        'homeLink' => false,
+                        'links' => [
+                          [
+                            'label' => $paragraph->genre,
+                            'url' => SearchHelper::getFilterUrl('genre', $paragraph->genre),
+                          ],
+                          [
+                            'label' => $paragraph->author,
+                            'url' => SearchHelper::getFilterUrl('author', $paragraph->author),
+                          ],
+                          [
+                            'label' => $paragraph->title,
+                            'url' => SearchHelper::getFilterUrl('title', $paragraph->title),
+                          ],
+                        ],
+                      ]); ?>
                       <div class="paragraph-context d-print-none">
                         <?php $total = ceil($paragraph->position / $pagination->pageSize); ?>
                         <?= Html::a(
@@ -430,6 +448,24 @@ if (document.readyState === 'loading') {
 } else {
     scrollToParagraph();
 }
+
+$('form').on('submit', function() {
+    // Сохраняем текущие значения фильтров перед отправкой
+    const searchParams = new URLSearchParams(window.location.search);
+    const genre = searchParams.get('search[genre]');
+    const author = searchParams.get('search[author]');
+    const title = searchParams.get('search[title]');
+    
+    if (genre) {
+        $(this).append('<input type="hidden" name="search[genre]" value="' + genre + '">');
+    }
+    if (author) {
+        $(this).append('<input type="hidden" name="search[author]" value="' + author + '">');
+    }
+    if (title) {
+        $(this).append('<input type="hidden" name="search[title]" value="' + title + '">');
+    }
+});
 JS;
 
 $this->registerJs($js);

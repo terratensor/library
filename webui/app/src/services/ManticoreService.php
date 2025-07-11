@@ -52,7 +52,8 @@ class ManticoreService
                         'position',
                     ]
                 ],
-            ]);
+            ]
+        );
     }
 
     public function findByBook(int $id): ParagraphDataProvider
@@ -75,7 +76,8 @@ class ManticoreService
                         'position'
                     ]
                 ],
-            ]);
+            ]
+        );
     }
 
     public function findBook($id): \Manticoresearch\ResultSet

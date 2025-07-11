@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace src\helpers;
 
+use Yii;
+
 class SearchHelper
 {
     public static array $charactersList = ['!', '"', '$', "'", '(', ')', '-', '/', '<', '@', '\\', '^', '|', '~'];
@@ -229,5 +231,61 @@ class SearchHelper
             }
         }
         return false;
+    }
+
+    /**
+     * Генерирует URL для переключения фильтра
+     * @param string $field имя поля (genre, author, title)
+     * @param string $value значение фильтра
+     * @return array URL с примененным/снятым фильтром
+     */
+    public static function getFilterUrl(string $field, string $value): array
+    {
+        $request = Yii::$app->request;
+        $params = $request->queryParams;
+        $searchParams = $params['search'] ?? [];
+
+        // Сохраняем текущий поисковый запрос (query)
+        $currentQuery = $searchParams['query'] ?? null;
+
+        // Если фильтр уже установлен и имеет то же значение - снимаем его
+        if (isset($searchParams[$field]) && $searchParams[$field] === $value) {
+            unset($searchParams[$field]);
+        } else {
+            // Иначе устанавливаем/обновляем фильтр
+            $searchParams[$field] = $value;
+        }
+
+        // Восстанавливаем поисковый запрос если он был
+        if ($currentQuery !== null) {
+            $searchParams['query'] = $currentQuery;
+        }
+
+        // Сохраняем другие параметры поиска
+        if (!empty($searchParams)) {
+            $params['search'] = $searchParams;
+        } elseif (isset($params['search'])) {
+            unset($params['search']);
+        }
+
+        // Сбрасываем номер страницы при изменении фильтров
+        if (isset($params['page'])) {
+            unset($params['page']);
+        }
+
+        return array_merge(['site/index'], $params);
+    }
+
+    public static function preserveFilters(array $currentParams): array
+    {
+        $request = Yii::$app->request;
+        $searchParams = $request->get('search', []);
+
+        // Сохраняем только нужные фильтры (исключаем сам поисковый запрос)
+        $preservedFilters = array_filter($searchParams, function ($key) {
+            return in_array($key, ['genre', 'author', 'title', 'matching', 'singleLineMode']);
+        }, ARRAY_FILTER_USE_KEY);
+
+        return array_merge($currentParams, ['search' => $preservedFilters]);
     }
 }

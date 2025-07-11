@@ -11,18 +11,19 @@ import (
 type PrepareParagraphs []Entry
 
 type Entry struct {
-	ID         *int64    `json:"id,omitempty"`
-	SourceUUID uuid.UUID `json:"source_uuid"`
-	Source     string    `json:"source"`
-	Genre      string    `json:"genre"`
-	Author     string    `json:"author"`
-	BookName   string    `json:"title"`
-	Text       string    `json:"text"`
-	Position   int       `json:"position"`
-	Length     int       `json:"length"`
-	Datetime   int64     `json:"datetime"`
-	CreatedAt  int64     `json:"created_at"`
-	UpdatedAt  int64     `json:"updated_at"`
+	ID           *int64    `json:"id,omitempty"`
+	SourceUUID   uuid.UUID `json:"source_uuid"`
+	Source       string    `json:"source"`
+	Genre        string    `json:"genre"`
+	Author       string    `json:"author"`
+	BookName     string    `json:"title"`
+	BookNameAttr string    `json:"title_attr"`
+	Text         string    `json:"text"`
+	Position     int       `json:"position"`
+	Length       int       `json:"length"`
+	Datetime     int64     `json:"datetime"`
+	CreatedAt    int64     `json:"created_at"`
+	UpdatedAt    int64     `json:"updated_at"`
 }
 
 type StorageInterface interface {
