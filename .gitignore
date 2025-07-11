@@ -4,3 +4,4 @@ common
 manticore/*
 build/*
 backup/*
+secrets/*

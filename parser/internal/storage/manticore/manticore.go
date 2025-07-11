@@ -39,18 +39,23 @@ func New(ctx context.Context, cfg *config.Manticore) (*Client, error) {
 	configuration.Servers = openapiclient.ServerConfigurations{{URL: serverConfigurationURL(cfg)}}
 	apiClient = openapiclient.NewAPIClient(configuration)
 
-	tbl := cfg.Index
+	tables := []string{"genre", "author", "source"}
+	mtbl := cfg.Index
+	tables = append(tables, mtbl)
 	engine := cfg.Engine
+
 	// Check if table exists in cache
-	exists := tableExists(ctx, tbl)
-	if !exists {
-		// Create table if it doesn't exist
-		if err := createTable(ctx, engine, tbl); err != nil {
-			return nil, fmt.Errorf("%s: %w", op, err)
+	for _, tbl := range tables {
+		exists := tableExists(ctx, tbl)
+		if !exists {
+			// Create table if it doesn't exist
+			if err := createTable(ctx, engine, tbl); err != nil {
+				return nil, fmt.Errorf("%s: %w", op, err)
+			}
 		}
 	}
 
-	return &Client{Index: tbl, apiClient: apiClient}, nil
+	return &Client{Index: mtbl, apiClient: apiClient}, nil
 }
 
 // tableExists checks whether a table with the specified name exists in the database.
@@ -69,10 +74,45 @@ func tableExists(ctx context.Context, tableName string) bool {
 	return err == nil
 }
 
+// createTable создает таблицу в Manticore Search со схемой, зависящей от имени таблицы.
+// Функция поддерживает специальные схемы для таблиц с именами "genre", "author" или "source",
+// и использует схему по умолчанию для всех остальных имен таблиц.
+//
+// Параметры:
+//   - ctx: context.Context - Контекст для отмены операций и таймаутов
+//   - engine: string - Движок хранения Manticore для создаваемой таблицы
+//   - tbl: string - Имя создаваемой таблицы. Определяет схему:
+//   - "genre": создает таблицу с полями genre_id, genre_uuid, name (индексированное) и временными метками
+//   - "author": создает таблицу с полями author_id, author_uuid, name (индексированное) и временными метками
+//   - "source": создает таблицу с полями source_uuid, name (индексированное) и временными метками
+//   - любое другое имя: создает таблицу с общей схемой, включающей поля для
+//     genre_id, author_id, title, text, position, length, source_uuid и временные метки
+//
+// Возвращает:
+//   - error: Возвращает nil при успешном создании, или ошибку если создание не удалось.
+//     Ошибка будет обернута с именем операции "storage.manticore.createTable".
+//
+// Особенности:
+//   - Все таблицы создаются с оптимизированными для поиска настройками:
+//   - min_infix_len='3' - включает поиск по подстрокам для терминов от 3 символов
+//   - index_exact_words='1' - индексирует точные формы слов
+//   - morphology='stem_en, stem_ru' - включает стемминг для английского и русского
+//   - index_sp='1' - индексирует границы предложений и абзацев
 func createTable(ctx context.Context, engine string, tbl string) error {
 	const op = "storage.manticore.createTable"
 
-	query := fmt.Sprintf("create table %v(genre text, author text, title text, `text` text, position int, length int, source_uuid string, source string) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
+	var query string
+
+	switch tbl {
+	case "genre":
+		query = fmt.Sprintf("create table %v(genre_id int, genre_uuid string, name string attribute indexed, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
+	case "author":
+		query = fmt.Sprintf("create table %v(author_id int, author_uuid string, name string attribute indexed, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
+	case "source":
+		query = fmt.Sprintf("create table %v(source_uuid string, name string attribute indexed, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
+	default:
+		query = fmt.Sprintf("create table %v(genre_id int, author_id int, title text, `text` text, position int, length int, source_uuid string, datetime timestamp, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
+	}
 
 	sqlRequest := apiClient.UtilsAPI.Sql(ctx).Body(query)
 	_, _, err := apiClient.UtilsAPI.SqlExecute(sqlRequest)
