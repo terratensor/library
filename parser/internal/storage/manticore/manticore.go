@@ -39,7 +39,7 @@ func New(ctx context.Context, cfg *config.Manticore) (*Client, error) {
 	configuration.Servers = openapiclient.ServerConfigurations{{URL: serverConfigurationURL(cfg)}}
 	apiClient = openapiclient.NewAPIClient(configuration)
 
-	tables := []string{"genre", "author", "source"}
+	tables := []string{}
 	mtbl := cfg.Index
 	tables = append(tables, mtbl)
 	engine := cfg.Engine
@@ -101,18 +101,7 @@ func tableExists(ctx context.Context, tableName string) bool {
 func createTable(ctx context.Context, engine string, tbl string) error {
 	const op = "storage.manticore.createTable"
 
-	var query string
-
-	switch tbl {
-	case "genre":
-		query = fmt.Sprintf("create table %v(genre_id int, genre_uuid string, name string attribute indexed, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
-	case "author":
-		query = fmt.Sprintf("create table %v(author_id int, author_uuid string, name string attribute indexed, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
-	case "source":
-		query = fmt.Sprintf("create table %v(source_uuid string, name string attribute indexed, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
-	default:
-		query = fmt.Sprintf("create table %v(genre_id int, author_id int, title text, `text` text, position int, length int, source_uuid string, datetime timestamp, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
-	}
+	query := fmt.Sprintf("create table %v(source_uuid string, source string indexed attribute, genre string indexed attribute, author string indexed attribute, title string indexed attribute, `text` text, position int, length int, datetime timestamp, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
 
 	sqlRequest := apiClient.UtilsAPI.Sql(ctx).Body(query)
 	_, _, err := apiClient.UtilsAPI.SqlExecute(sqlRequest)

@@ -20,6 +20,9 @@ type Entry struct {
 	Text       string    `json:"text"`
 	Position   int       `json:"position"`
 	Length     int       `json:"length"`
+	Datetime   int64     `json:"datetime"`
+	CreatedAt  int64     `json:"created_at"`
+	UpdatedAt  int64     `json:"updated_at"`
 }
 
 type StorageInterface interface {

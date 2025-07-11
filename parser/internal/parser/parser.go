@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -504,6 +505,8 @@ func appendParagraph(b strings.Builder, titleList *book.TitleList, position int,
 		Text:       text,
 		Position:   position,
 		Length:     utf8.RuneCountInString(b.String()),
+		CreatedAt:  time.Now().Unix(),
+		UpdatedAt:  time.Now().Unix(),
 	}
 
 	pars = append(pars, parsedParagraph)

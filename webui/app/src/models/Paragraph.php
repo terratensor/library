@@ -7,7 +7,7 @@ namespace src\models;
 use yii\base\Model;
 
 class Paragraph extends Model
-{    
+{
     public string $genre;
     public string $author;
     public string $title;
@@ -17,6 +17,9 @@ class Paragraph extends Model
     public array $highlight;
     public string $source_uuid;
     public string $source;
+    public int $datetime;
+    public int $created_at;
+    public int $updated_at;
     private int $id;
 
     public static function create(

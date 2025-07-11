@@ -80,6 +80,10 @@ class ParagraphRepository
             ],
         );
 
+        // $search->filter('genre', 'in', "Биографии и Мемуары");
+        // $search->filter('author', 'in', "Ленин Владимир");
+        // $search->filter('title', 'in', "Быть!");
+
         return $search;
     }
 

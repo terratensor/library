@@ -33,8 +33,10 @@ services:
     environment:
       - EXTRA=1
     volumes:
-      - ./manticore/data:/var/lib/manticore
-      - ./manticore/logs:/var/log/manticore
+      # - ./manticore/data:/var/lib/manticore
+      # - ./manticore/logs:/var/log/manticore
+      - manticore:/var/lib/manticore
+      - manticore:/var/log/manticore
 
   manticore-proxy:
     container_name: library-manticore-proxy
@@ -50,6 +52,10 @@ services:
       - manticore_api_key
     depends_on:
       - manticore
+
+volumes:
+  manticore:
+
 
 secrets:
   manticore_api_key:
