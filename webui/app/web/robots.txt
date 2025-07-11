@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /?search[query]=*
+Disallow: /?search%5Bquery%5D=*
