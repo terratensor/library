@@ -56,4 +56,9 @@ class SearchResultHelper
 
         return trim($text);
     }
+
+    public static function fieldContent(Paragraph $paragraph, string $field): string
+    {
+        return $paragraph->{$field};
+    }
 }

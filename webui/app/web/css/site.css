@@ -392,3 +392,12 @@ footer .container-fluid {
 .search-results mark {
     background-color: #e1e0e0;
 }
+
+.bookmarks,
+.share,
+.icons {
+    color: rgba(var(--bs-link-color-rgb), var(--bs-link-opacity, 1));
+    text-decoration: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+}

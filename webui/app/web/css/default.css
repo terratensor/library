@@ -91,8 +91,6 @@
     --bs-link-color: #a30000;
     --bs-link-color-rgb: 163, 0, 0;
     --bs-link-decoration: underline;
-    --bs-link-hover-color: #0a58ca;
-    --bs-link-hover-color-rgb: 10, 88, 202;
     --bs-code-color: #d63384;
     --bs-highlight-bg: #fff3cd;
     --bs-border-width: 1px;
@@ -122,6 +120,11 @@
 
     --bs-pagination-active-bg: #a10000;
     --bs-pagination-active-border-color: #9d0000;
+
+    --bs-link-color: #a30000;
+    --bs-link-color-rgb: 163, 0, 0;
+    --bs-link-hover-color: #af1c1c;
+    --bs-link-hover-color-rgb: 175, 28, 28;
 
     /*Светлая тема красный СВОДД, наши вставки*/
     --pagination-a-bg: #a10000;
@@ -197,10 +200,7 @@
     --bs-light-border-subtle: #495057;
     --bs-dark-border-subtle: #343a40;
     --bs-heading-color: #fff;
-    --bs-link-color: #6ea8fe;
-    --bs-link-hover-color: #9ec5fe;
-    --bs-link-color-rgb: 110, 168, 254;
-    --bs-link-hover-color-rgb: 158, 197, 254;
+
     --bs-code-color: #e685b5;
     --bs-border-color: #495057;
     --bs-border-color-translucent: rgba(255, 255, 255, 0.15);
@@ -223,7 +223,7 @@
     --bg-footer-color: #1d2124;
     --sv-quote-border: #545151;
     /*--bd-red-rgb: #af1c1c;*/
-    --bd-red-rgb: 175,28,28;
+    --bd-red-rgb: 175, 28, 28;
     --bs-dropdown-link-active-color: #ffffff;
     --bs-dropdown-link-active-bg: #a10000;
     --sv-search-form: #cfcad3;
@@ -306,11 +306,13 @@ span.link {
     flex-grow: 1;
     padding-right: 0.75rem;
 }
+
 /** Медиа запрос, когда ширина меньше 576px, складываются друг под друга и отступ слева обнуляется */
 @media (max-width: 576px) {
     .svodd-breadcrumb {
         flex-direction: column;
     }
+
     .svodd-breadcrumb nav {
         width: 100%;
         padding-right: 0;
@@ -342,7 +344,7 @@ span.link {
 
 /*Placeholder*/
 input:focus::-webkit-input-placeholder {
-    color: transparent!important;
+    color: transparent !important;
 }
 
 input:focus::-moz-placeholder {
@@ -391,6 +393,7 @@ input:focus:-ms-input-placeholder {
 .paragraph-text h5 {
     font-size: 1.2rem;
 }
+
 .book-mode .paragraph-text h1,
 .book-mode .paragraph-text h2,
 .book-mode .paragraph-text h3,
@@ -399,6 +402,7 @@ input:focus:-ms-input-placeholder {
 .book-mode .paragraph-text h5 {
     padding: 1.2rem 0;
 }
+
 .book-name {
     font-family: "PT Serif", "Noto Sans Armenian", "Noto Sans Bengali", serif;
     line-height: 1.5;
@@ -406,12 +410,13 @@ input:focus:-ms-input-placeholder {
     overflow-x: hidden;
 }
 
-.book-name > div {
+.book-name>div {
     padding: 3px 5px 5px 0;
     border-top: 1px solid;
 }
 
 @media (min-width: 768px) {
+
     .paragraph,
     .welcome-card {
         font-size: 1.115rem;
@@ -457,6 +462,7 @@ input:focus:-ms-input-placeholder {
 }
 
 @media (min-width: 1200px) {
+
     .paragraph,
     .welcome-card {
         font-size: 1.1875rem;
@@ -493,6 +499,7 @@ input:focus:-ms-input-placeholder {
     z-index: 998;
     background-color: var(--bs-body-bg);
 }
+
 .page-book-name h3 {
     font-size: calc(1rem + .6vw);
 }
