@@ -69,13 +69,14 @@ class SiteController extends Controller
      */
     public function actionIndex(): string
     {
-        $results = null;
         $form = new SearchForm();
         $errorQueryMessage = '';
 
+        $aggs = $this->service->aggs($form);
+
         try {
             if ($form->load(Yii::$app->request->queryParams) && $form->validate()) {
-                $results = $this->service->search($form);
+                $aggs = $this->service->aggs($form);
             }
         } catch (\DomainException $e) {
             Yii::$app->errorHandler->logException($e);
@@ -87,7 +88,7 @@ class SiteController extends Controller
         }
 
         return $this->render('index', [
-            'results' => $results ?? null,
+            'aggs' => $aggs ?? null,
             'model' => $form,
             'errorQueryMessage' => $errorQueryMessage,
         ]);
@@ -101,6 +102,7 @@ class SiteController extends Controller
 
         try {
             if ($form->load(Yii::$app->request->queryParams) && $form->validate()) {
+
                 $results = $this->service->search($form);
             }
         } catch (\DomainException $e) {
@@ -112,7 +114,7 @@ class SiteController extends Controller
             $errorQueryMessage = $e->getMessage();
         }
 
-        return $this->render('index', [
+        return $this->render('search', [
             'results' => $results ?? null,
             'model' => $form,
             'errorQueryMessage' => $errorQueryMessage,

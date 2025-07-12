@@ -19,42 +19,32 @@ $this->registerMetaTag(['name' => 'description', 'content' => $this->params['met
 <?php $this->beginPage() ?>
 <!DOCTYPE html>
 <html lang="<?= Yii::$app->language ?>" class="h-100" data-bs-theme="dark">
+
 <head>
     <?= $this->render('favicon'); ?>
     <title><?= Html::encode($this->title) ?></title>
     <script src="/js/color-mode-toggler.js"></script>
     <?php $this->head() ?>
-    <?= $this->render('yandex_metrika'); ?>
 </head>
-<body class="d-flex flex-column h-100">
-<?php $this->beginBody() ?>
-<?php if (!Yii::$app->params['cleanDesign']): ?>
-<?= $this->render('red_header'); ?>
-<?php endif; ?>
 
-<main role="main" class="flex-shrink-0 mb-3">
+<body class="d-flex flex-column h-100">
+    <?php $this->beginBody() ?>
     <?php if (!Yii::$app->params['cleanDesign']): ?>
-  <div class="container-fluid pb-0">
-    <div class="d-flex justify-content-between align-items-baseline svodd-breadcrumb">
-        <?= Breadcrumbs::widget(
-            [
-                'links' => $this->params['breadcrumbs'] ?? [],
-            ]
-        ) ?>
-    </div>
-      <?= Alert::widget() ?>
-  </div>
+        <?= $this->render('red_header'); ?>
     <?php endif; ?>
 
-    <?= $content ?>
+    <main role="main" class="flex-shrink-0 mb-3">
+        <?= $content ?>
+        <?php $this->render('_sidebar') ?>
 
-</main>
+    </main>
 
-<?php if (!Yii::$app->params['cleanDesign']): ?>
-<?= $this->render('footer'); ?>
-<?php endif; ?>
+    <?php if (!Yii::$app->params['cleanDesign']): ?>
+        <?= $this->render('footer'); ?>
+    <?php endif; ?>
 
-<?php $this->endBody() ?>
+    <?php $this->endBody() ?>
 </body>
+
 </html>
 <?php $this->endPage() ?>

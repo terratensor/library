@@ -26,20 +26,9 @@ class ManticoreService
     public function search(SearchForm $form): ParagraphDataProvider
     {
         $queryString = $form->query;
+        $comments = $this->paragraphRepository->findByQueryStringNew($queryString, $form);
 
-        $comments = $this->paragraphRepository->findByQueryStringNew($queryString, $indexName ?? null, $form);
-        // try {
-        //     $comments = match ($form->matching) {
-        //         'query_string' => $this->paragraphRepository->findByQueryStringNew($queryString, $indexName ?? null, $form),
-        //         'match_phrase' => $this->paragraphRepository->findByMatchPhrase($queryString, $indexName ?? null, $form),
-        //         'match' => $this->paragraphRepository->findByQueryStringMatch($queryString, $indexName ?? null, $form),
-        //         'in' => $this->paragraphRepository->findByParagraphId($queryString, $indexName ?? null, $form),
-        //         'context' => $this->paragraphRepository->findByContext($form, $indexName ?? null),
-        //     };
-        // } catch (\DomainException $e) {
-        //     throw new EmptySearchRequestExceptions($e->getMessage());
-        // }
-
+        $responseData = $comments->get()->getResponse()->getResponse();
 
         return new ParagraphDataProvider(
             [
@@ -53,8 +42,15 @@ class ManticoreService
                         'position',
                     ]
                 ],
+                'responseData' => $responseData
             ]
         );
+    }
+
+    public function aggs(SearchForm $form)
+    {
+        $resp = $this->paragraphRepository->findAggsAll($form);
+        return $resp->getResponse();
     }
 
     public function findByBook(int $id): ParagraphDataProvider

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace src\helpers;
 
 use Yii;
+use yii\helpers\Url;
 use InvalidArgumentException;
 
 class SearchHelper
@@ -274,7 +275,15 @@ class SearchHelper
             unset($params['page']);
         }
 
-        return array_merge(['site/index'], $params);
+        return array_merge(['site/search'], $params);
+    }
+
+    public static function getRemoveFilterUrl($field)
+    {
+        $params = Yii::$app->request->queryParams;
+        unset($params['search'][$field]);
+        $params['page'] = 1;
+        return Url::current($params);
     }
 
     public static function preserveFilters(array $currentParams): array

@@ -11,6 +11,7 @@ use Manticoresearch\Table;
 use Manticoresearch\Client;
 use Manticoresearch\Search;
 use Manticoresearch\Query\In;
+use Manticoresearch\Response;
 use src\helpers\SearchHelper;
 use Manticoresearch\Query\Equals;
 use Manticoresearch\Query\BoolQuery;
@@ -45,30 +46,17 @@ class ParagraphRepository
      */
     public function findByQueryStringNew(
         string $queryString,
-        ?string $indexName = null,
         ?SearchForm $form = null
     ): Search {
-        // $this->search->reset();
-        if ($indexName) {
-            // $this->setIndex($this->search->setTable($indexName));
-        }
-
         $queryString = SearchHelper::processStringWithURLs($queryString);
         $queryString = SearchHelper::escapeUnclosedQuotes($queryString);
 
-        // // Запрос переделан под фильтр
-        // $query = new BoolQuery();
-
-        // if ($form->query) {
-        //     $query->must(new QueryString($queryString));
-        // }
-
         if ($form->genre !== '') {
-            $this->search->filter('genre', 'in', $form->genre);
+            $this->search->filter('genre_attr', 'in', $form->genre);
         }
 
         if ($form->author !== '') {
-            $this->search->filter('author', 'in', $form->author);
+            $this->search->filter('author_attr', 'in', $form->author);
         }
 
         if ($form->title !== '') {
@@ -78,8 +66,8 @@ class ParagraphRepository
         // Выполняем поиск если установлен фильтр или установлен строка поиска
         $search = $this->search->search($form->query);
 
-        $search->facet('genre', 'genre_group', 100);
-        $search->facet('author', 'author_group', 100);
+        $search->facet('genre_attr', 'genre_group', 100);
+        $search->facet('author_attr', 'author_group', 100);
         $search->facet('title_attr', 'title_group', 100);
 
         // Включаем нечёткий поиск, если строка не пустая или не содержит символы, используемые в полнотекстовом поиске
@@ -99,6 +87,41 @@ class ParagraphRepository
                 'post_tags' => '</mark>'
             ],
         );
+
+        return $search;
+    }
+
+    public function findAggsAll(SearchForm $form): array|Response
+    {
+        $search = $this->client->search([
+            'body' => [
+                'table' => 'library2025',
+                'query' => [
+                    'match_all' => '',
+                ],
+                'aggs' => [
+                    'genre_group' => [
+                        'terms' => [
+                            'field' => 'genre_attr',
+                            'size' => 100
+                        ]
+                    ],
+                    'author_group' => [
+                        'terms' => [
+                            'field' => 'author_attr',
+                            'size' => 100
+                        ]
+                    ],
+                    'title_group' => [
+                        'terms' => [
+                            'field' => 'title_attr',
+                            'size' => 100
+                        ]
+                    ]
+                ],
+                'limit' => 0
+            ]
+        ], true);
 
         return $search;
     }

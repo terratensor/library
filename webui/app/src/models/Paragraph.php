@@ -9,7 +9,9 @@ use yii\base\Model;
 class Paragraph extends Model
 {
     public string $genre;
-    public string $author;    
+    public string $genre_attr;
+    public string $author;
+    public string $author_attr;
     public string $title;
     public string $title_attr;
     public string $text;

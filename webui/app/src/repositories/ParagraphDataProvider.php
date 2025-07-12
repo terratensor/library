@@ -19,6 +19,8 @@ class ParagraphDataProvider extends BaseDataProvider
      * @var Search
      */
     public Search $query;
+    public array $aggregations = [];
+    public $responseData;
 
     protected function prepareModels(): array
     {
@@ -62,7 +64,7 @@ class ParagraphDataProvider extends BaseDataProvider
             }
 
             for ($count = 0; $count < $limit; ++$count) {
-                $model = new Paragraph( $data->current()->getData());
+                $model = new Paragraph($data->current()->getData());
                 $model->setId((int)$data->current()->getId());
                 try {
                     $model->highlight = $data->current()->getHighlight();
