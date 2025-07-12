@@ -133,17 +133,18 @@ $inputTemplate = '<div class="input-group mb-2">
           // сначала получаем массив моделей, потом получаем общее их количество
           /** @var Paragraph[] $paragraphs */
           $paragraphs = $results->getModels();
+          $queryParams = Yii::$app->request->queryParams;
           $pagination = new Pagination(
             [
               'totalCount' => $results->getTotalCount(),
               'defaultPageSize' => Yii::$app->params['searchResults']['pageSize'],
-              'params' => array_merge(Yii::$app->request->get(), [
-                'search' => [
-                  'singleLineMode' => $model->singleLineMode,
-                  'matching' => $model->matching,
-                  'query' => $model->query,
-                ]
-              ]),
+              // 'params' => array_merge(Yii::$app->request->get(), [
+              //   'search' => [
+              //     'singleLineMode' => $model->singleLineMode,
+              //     'matching' => $model->matching,
+              //     'query' => $model->query,
+              //   ]
+              // ]),
             ]
           );
           ?>
