@@ -53,6 +53,7 @@ $config = [
             'showScriptName' => false,
             'rules' => [
                 '' => 'site/index',
+                'search' => 'site/search',
                 'print_page' => 'site/quote',
                 'context/<id:[\w\-]+>' => 'site/context',
                 '<_c:[\w\-]+>' => '<_c>/index',

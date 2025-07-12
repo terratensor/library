@@ -93,6 +93,32 @@ class SiteController extends Controller
         ]);
     }
 
+    public function actionSearch(): string
+    {
+        $results = null;
+        $form = new SearchForm();
+        $errorQueryMessage = '';
+
+        try {
+            if ($form->load(Yii::$app->request->queryParams) && $form->validate()) {
+                $results = $this->service->search($form);
+            }
+        } catch (\DomainException $e) {
+            Yii::$app->errorHandler->logException($e);
+            Yii::$app->session->setFlash('error', $e->getMessage());
+        } catch (EmptySearchRequestExceptions $e) {
+            $errorQueryMessage = $e->getMessage();
+        } catch (Exception $e) {
+            $errorQueryMessage = $e->getMessage();
+        }
+
+        return $this->render('index', [
+            'results' => $results ?? null,
+            'model' => $form,
+            'errorQueryMessage' => $errorQueryMessage,
+        ]);
+    }
+
     public function actionContext($id): string
     {
         $this->layout = 'print';

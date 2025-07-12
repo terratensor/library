@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace src\helpers;
 
+use Yii;
 use src\models\Paragraph;
 use yii\helpers\Markdown;
 
@@ -60,5 +61,25 @@ class SearchResultHelper
     public static function fieldContent(Paragraph $paragraph, string $field): string
     {
         return $paragraph->{$field};
+    }
+
+    // src/helpers/SearchHelper.php
+
+    public static function getResetFiltersUrl(): array
+    {
+        $request = Yii::$app->request;
+        $params = $request->queryParams;
+
+        // Удаляем все фильтры, кроме поискового запроса
+        if (isset($params['search']['query'])) {
+            $params['search'] = ['query' => $params['search']['query']];
+        } else {
+            unset($params['search']);
+        }
+
+        // Сбрасываем пагинацию
+        unset($params['page']);
+
+        return array_merge(['site/index'], $params);
     }
 }

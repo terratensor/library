@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace src\helpers;
 
 use Yii;
+use InvalidArgumentException;
 
 class SearchHelper
 {
@@ -287,5 +288,29 @@ class SearchHelper
         }, ARRAY_FILTER_USE_KEY);
 
         return array_merge($currentParams, ['search' => $preservedFilters]);
+    }
+
+    /**
+     * Нормализует строку, удаляя диакритические знаки, преобразуя в нижний регистр при необходимости 
+     * и обрезая/нормализуя пробелы.
+     *
+     * @param string $str Строка для нормализации.
+     * @param bool $strtolower Преобразовывать ли строку в нижний регистр. По умолчанию true.
+     * @return string Нормализованная строка.
+     */
+    public static function normalizeString(string $str, bool $strtolower = true): string
+    {
+        if (!is_string($str)) {
+            throw new InvalidArgumentException('normalizeString(): Expected string argument.');
+        }
+
+        $str = \Normalizer::normalize($str, \Normalizer::NFC);
+        $str = preg_replace('/[\r\n\t]/', ' ', $str);
+        if ($strtolower) {
+            $str = mb_strtolower($str);
+        }
+        $str = trim(preg_replace('/\s+/', ' ', $str));
+
+        return $str;
     }
 }

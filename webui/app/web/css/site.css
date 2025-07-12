@@ -406,3 +406,75 @@ footer .container-fluid {
     background-color: transparent;
     margin-bottom: 0;
 }
+
+/* Стили для бейджей фильтров */
+/* Стили для бейджей фильтров с обрезанием текста */
+.filter-badge {
+    --tw-bg-opacity: 1;
+    --bs-badge-color: var(--bs-white);
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    margin-right: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    max-width: 200px;
+    /* Максимальная ширина бейджа */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+    cursor: default;
+}
+
+.filter-badge .close {
+    margin-left: 0.25rem;
+    font-size: 1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.filter-badge .text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Цвета остаются теми же */
+.genre-badge {
+    background-color: rgba(189, 142, 0, var(--tw-bg-opacity));
+    color: var(--bs-badge-color);
+}
+
+.author-badge {
+    background-color: rgba(181, 29, 0, var(--tw-bg-opacity));
+    color: var(--bs-badge-color);
+}
+
+.title-badge {
+    background-color: rgba(45, 126, 35, var(--tw-bg-opacity));
+    color: var(--bs-badge-color);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 768px) {
+    .filter-badge {
+        max-width: 150px;
+        margin-bottom: 0.25rem;
+    }
+
+    #active-filters-container {
+        margin-top: 0.5rem;
+    }
+}

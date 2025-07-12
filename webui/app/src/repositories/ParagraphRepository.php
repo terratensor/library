@@ -56,23 +56,42 @@ class ParagraphRepository
         $queryString = SearchHelper::processStringWithURLs($queryString);
         $queryString = SearchHelper::escapeUnclosedQuotes($queryString);
 
-        // Запрос переделан под фильтр
-        $query = new BoolQuery();
+        // // Запрос переделан под фильтр
+        // $query = new BoolQuery();
 
-        if ($form->query) {
-            $query->must(new QueryString($queryString));
+        // if ($form->query) {
+        //     $query->must(new QueryString($queryString));
+        // }
+
+        if ($form->genre !== '') {
+            $this->search->filter('genre', 'in', $form->genre);
+        }
+
+        if ($form->author !== '') {
+            $this->search->filter('author', 'in', $form->author);
+        }
+
+        if ($form->title !== '') {
+            $this->search->filter('title_attr', 'in', $form->title);
         }
 
         // Выполняем поиск если установлен фильтр или установлен строка поиска
-        if ($form->query) {
-            $search = $this->search->search($query);
-        } else {
-            throw new \DomainException('Задан пустой поисковый запрос');
+        $search = $this->search->search($form->query);
+
+        $search->facet('genre', 'genre_group', 100);
+        $search->facet('author', 'author_group', 100);
+        $search->facet('title_attr', 'title_group', 100);
+
+        // Включаем нечёткий поиск, если строка не пустая или не содержит символы, используемые в полнотекстовом поиске
+        // и не сдержит hash автварки пользователя
+        if ($form->fuzzy) {
+            \Yii::$app->session->setFlash('success', "Включена опция «Нечёткий поиск». Для выключения уберите флажок в настройках поиска.");
+            static::applyFuzzy($search, true);
         }
 
         // Если нет совпадений no_match_size возвращает пустое поле для подсветки
         $search->highlight(
-            ['genre', 'author', 'title', 'text'],
+            ['title', 'text'],
             [
                 'limit' => 0,
                 'no_match_size' => 0,
@@ -80,18 +99,6 @@ class ParagraphRepository
                 'post_tags' => '</mark>'
             ],
         );
-
-        if ($form->genre !== '') {
-            $search->filter('genre', 'in', $form->genre);
-        }
-
-        if ($form->author !== '') {
-            $search->filter('author', 'in', $form->author);
-        }
-
-        if ($form->title !== '') {
-            $search->filter('title_attr', 'in', $form->title);
-        }
 
         return $search;
     }
@@ -380,5 +387,20 @@ class ParagraphRepository
         $par->setId((int)$hit->getId());
 
         return $par;
+    }
+
+    /**
+     * @param Search $search
+     * @param bool $enable_layouts
+     * @return void
+     */
+    protected static function applyFuzzy(Search $search, bool $enable_layouts = false): void
+    {
+        $search->option('fuzzy', 1);
+        $layouts = [];
+        if ($enable_layouts) {
+            $layouts = ['ru', 'us'];
+        }
+        $search->option('layouts', $layouts);
     }
 }

@@ -67,7 +67,7 @@ $inputTemplate = '<div class="input-group mb-2">
         <?php $form = ActiveForm::begin(
           [
             'method' => 'GET',
-            'action' => ['site/index'],
+            'action' => ['site/search'],
             'options' => ['class' => 'pb-1 mb-2 pt-3', 'autocomplete' => 'off'],
           ]
         ); ?>
@@ -76,7 +76,6 @@ $inputTemplate = '<div class="input-group mb-2">
         <?= Html::hiddenInput('search[genre]', $model->genre) ?>
         <?= Html::hiddenInput('search[author]', $model->author) ?>
         <?= Html::hiddenInput('search[title]', $model->title) ?>
-        <?= Html::hiddenInput('search[matching]', $model->matching) ?>
         <?= Html::hiddenInput('search[singleLineMode]', $model->singleLineMode ? '1' : '0') ?>
         <div class="d-flex align-items-center">
           <?= $form->field($model, 'query', [
@@ -94,16 +93,51 @@ $inputTemplate = '<div class="input-group mb-2">
             ]
           )->label(false); ?>
         </div>
+        <?php if (!empty($model->genre) || !empty($model->author) || !empty($model->title)): ?>
+          <!-- Добавляем кнопку сброса -->
+          <div class="d-flex align-items-center mb-2 flex-wrap">
+            <?= Html::a('Сбросить все', ['site/search'], [
+              'class' => 'btn btn-outline-danger btn-sm me-2' .
+                (empty($model->genre) && empty($model->author) && empty($model->title) ? ' d-none' : ''),
+              'id' => 'reset-filters'
+            ]) ?>
+            <div id="active-filters-container" class="d-flex flex-wrap">
+              <?php if (!empty($model->genre)): ?>
+                <span class="filter-badge genre-badge" data-bs-toggle="tooltip" title="<?= Html::encode($model->genre) ?>">
+                  <span class="text"><?= Html::encode(mb_substr($model->genre, 0, 30) . (mb_strlen($model->genre) > 30 ? '...' : '')) ?></span>
+                  <a href="<?= \yii\helpers\Url::to(\src\helpers\SearchHelper::getFilterUrl('genre', '')) ?>"
+                    class="text-reset close" aria-label="Удалить">&times;</a>
+                </span>
+              <?php endif; ?>
+
+              <?php if (!empty($model->author)): ?>
+                <span class="filter-badge author-badge" data-bs-toggle="tooltip" title="<?= Html::encode($model->author) ?>">
+                  <span class="text"><?= Html::encode(mb_substr($model->author, 0, 30) . (mb_strlen($model->author) > 30 ? '...' : '')) ?></span>
+                  <a href="<?= \yii\helpers\Url::to(\src\helpers\SearchHelper::getFilterUrl('author', '')) ?>"
+                    class="text-reset close" aria-label="Удалить">&times;</a>
+                </span>
+              <?php endif; ?>
+
+              <?php if (!empty($model->title)): ?>
+                <span class="filter-badge title-badge" data-bs-toggle="tooltip" title="<?= Html::encode($model->title) ?>">
+                  <span class="text"><?= Html::encode(mb_substr($model->title, 0, 30) . (mb_strlen($model->title) > 30 ? '...' : '')) ?></span>
+                  <a href="<?= \yii\helpers\Url::to(\src\helpers\SearchHelper::getFilterUrl('title', '')) ?>"
+                    class="text-reset close" aria-label="Удалить">&times;</a>
+                </span>
+              <?php endif; ?>
+            </div>
+          </div>
+        <?php endif; ?>
         <div id="search-setting-panel"
           class="search-setting-panel <?= Yii::$app->session->get('show_search_settings') ? 'show-search-settings' : '' ?>">
 
-          <?= $form->field($model, 'matching', ['inline' => true, 'options' => ['class' => 'pb-2']])
-            ->radioList($model->getMatching(), ['class' => 'form-check-inline'])
-            ->label(false); ?>
-
+          <!-- Чекбокс для включения/выключения нечёткого поиска -->
+          <?= $form->field($model, 'fuzzy', ['options' => ['class' => '']])
+            ->checkbox()
+            ->label('Нечёткий поиск'); ?>
           <!-- Чекбокс для включения/выключения однострочного режима -->
-          <?php echo $form->field($model, 'singleLineMode', [
-            'options' => ['class' => 'pb-3 single-line-mode'],
+          <?= $form->field($model, 'singleLineMode', [
+            'options' => ['class' => 'pb-2 single-line-mode'],
             'template' => "<div class=\"form-check form-switch\">\n{input}\n{label}\n</div>",
             'labelOptions' => ['class' => 'form-check-label'],
           ])->checkbox([
@@ -113,7 +147,6 @@ $inputTemplate = '<div class="input-group mb-2">
             'data-scroll' => 'true', // Добавляем атрибут для обработки скролла
           ], false)->label('Однострочный режим (убрать переносы строк)');
           ?>
-
         </div>
 
         <?php ActiveForm::end(); ?>
@@ -163,20 +196,29 @@ $inputTemplate = '<div class="input-group mb-2">
                     <div class="card-header d-flex justify-content-between">
                       <?= Breadcrumbs::widget([
                         'homeLink' => false,
-                        'links' => [
-                          [
+                        'links' => array_filter([
+                          !empty($paragraph->genre) ? [
                             'label' => $paragraph->genre,
                             'url' => SearchHelper::getFilterUrl('genre', $paragraph->genre),
-                          ],
-                          [
+                            'active' => !empty($model->genre) && $model->genre === $paragraph->genre ? ' active-filter' : '',
+                            'data-bs-toggle' => 'tooltip',
+                            'data-bs-title' => !empty($model->genre) && $model->genre === $paragraph->genre ? 'Нажмите чтобы снять фильтр' : 'Нажмите чтобы фильтровать по жанру'
+                          ] : null,
+                          !empty($paragraph->author) ? [
                             'label' => $paragraph->author,
                             'url' => SearchHelper::getFilterUrl('author', $paragraph->author),
-                          ],
-                          [
+                            'active' => !empty($model->author) && $model->author === $paragraph->author ? ' active-filter' : '',
+                            'data-bs-toggle' => 'tooltip',
+                            'data-bs-title' => !empty($model->author) && $model->author === $paragraph->author ? 'Нажмите чтобы снять фильтр' : 'Нажмите чтобы фильтровать по автору'
+                          ] : null,
+                          !empty($paragraph->title) ? [
                             'label' => $paragraph->title,
                             'url' => SearchHelper::getFilterUrl('title', $paragraph->title),
-                          ],
-                        ],
+                            'active' => !empty($model->title) && $model->title === $paragraph->title ? ' active-filter' : '',
+                            'data-bs-toggle' => 'tooltip',
+                            'data-bs-title' => !empty($model->title) && $model->title === $paragraph->title ? 'Нажмите чтобы снять фильтр' : 'Нажмите чтобы фильтровать по наименованию'
+                          ] : null,
+                        ]),
                       ]); ?>
                       <div class="paragraph-context d-print-none">
                         <?php $total = ceil($paragraph->position / $pagination->pageSize); ?>
@@ -467,6 +509,18 @@ $('form').on('submit', function() {
         $(this).append('<input type="hidden" name="search[title]" value="' + title + '">');
     }
 });
+
+// Инициализация tooltips для активных фильтров
+$(document).ready(function() {
+    $('[data-bs-toggle="tooltip"]').tooltip();
+});
+
+// Обработчик кликов по кнопкам удаления фильтров
+$(document).on('click', '.filter-badge .close', function(e) {
+    e.preventDefault();
+    window.location.href = $(this).attr('href');
+});
+
 JS;
 
 $this->registerJs($js);
