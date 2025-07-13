@@ -101,7 +101,7 @@ func tableExists(ctx context.Context, tableName string) bool {
 func createTable(ctx context.Context, engine string, tbl string) error {
 	const op = "storage.manticore.createTable"
 
-	query := fmt.Sprintf("create table %v(source_uuid string, source string, genre string, author string, title text, title_attr string, `text` text, position int, length int, datetime timestamp, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'", tbl, engine)
+	query := fmt.Sprintf(`create table %v(source_uuid string, source string, genre_attr string, genre string indexed attribute, author string indexed attribute, author_attr string, title string indexed attribute, title_attr string, content text, language string, chunk int, char_count int, word_count int, ocr_quality float, datetime timestamp, created_at timestamp, updated_at timestamp) engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru' index_sp='1'`, tbl, engine)
 
 	sqlRequest := apiClient.UtilsAPI.Sql(ctx).Body(query)
 	_, _, err := apiClient.UtilsAPI.SqlExecute(sqlRequest)

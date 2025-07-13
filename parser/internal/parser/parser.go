@@ -500,15 +500,24 @@ func appendParagraph(b strings.Builder, titleList *book.TitleList, position int,
 		SourceUUID:   titleList.SourceUUID,
 		Source:       titleList.Source,
 		Genre:        titleList.Genre,
+		GenreAttr:    titleList.Genre,
 		Author:       titleList.Author,
+		AuthorAttr:   titleList.Author,
 		BookName:     titleList.Title,
 		BookNameAttr: titleList.Title,
-		Text:         text,
-		Position:     position,
-		Length:       utf8.RuneCountInString(b.String()),
+		Content:      text,
+		Chunk:        position,
 		CreatedAt:    time.Now().Unix(),
 		UpdatedAt:    time.Now().Unix(),
 	}
+
+	parsedParagraph.CalculateCharCount()
+	parsedParagraph.CalculateWordCount()
+	parsedParagraph.DetectLanguage()
+	parsedParagraph.CalculateOCRQuality()
+
+	// log.Printf("parsedParagraph: %v", parsedParagraph)
+	// panic("stop")
 
 	pars = append(pars, parsedParagraph)
 	return pars
