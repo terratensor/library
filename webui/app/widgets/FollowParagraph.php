@@ -34,12 +34,12 @@ class FollowParagraph extends Widget
     public function init(): void
     {
         $this->paragraph_id = $this->paragraph->getId();
-        $this->position = $this->paragraph->position;
+        $this->position = $this->paragraph->chunk;
     }
 
     public function getUrl(): string
     {
-        $total = ceil($this->paragraph->position /$this->pagination->pageSize);
+        $total = ceil($this->paragraph->chunk /$this->pagination->pageSize);
         return Url::to(
             [
                 'book/view',

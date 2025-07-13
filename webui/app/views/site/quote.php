@@ -31,7 +31,7 @@ $this->title = "Контекст — $bookName";
                 <div data-entity-id="<?= $paragraph->uuid; ?>">
                   <div class="paragraph-text">
                       <?php if (!$paragraph->highlight['text'] || !$paragraph->highlight['text'][0]): ?>
-                          <?php echo Yii::$app->formatter->asRaw(htmlspecialchars_decode($paragraph->text)); ?>
+                          <?php echo Yii::$app->formatter->asRaw(htmlspecialchars_decode($paragraph->content)); ?>
                       <?php else: ?>
                           <?php echo Yii::$app->formatter->asRaw(htmlspecialchars_decode($paragraph->highlight['text'][0])); ?>
                       <?php endif; ?>

@@ -111,15 +111,15 @@ echo Html::endForm();
                     ]),
                   ]); ?>
                   <div class="paragraph-context d-print-none">
-                    <?php $total = ceil($paragraph->position / $pagination->pageSize); ?>
+                    <?php $total = ceil($paragraph->chunk / $pagination->pageSize); ?>
                     <?= Html::a(
                       'контекст',
                       [
                         'site/context',
                         'id' => $paragraph->id,
                         'page' => $total,
-                        'f' => $paragraph->position,
-                        '#' => $paragraph->position
+                        'f' => $paragraph->chunk,
+                        '#' => $paragraph->chunk
                       ],
                       [
                         'class' => 'btn btn-link btn-context paragraph-context',
@@ -133,12 +133,12 @@ echo Html::endForm();
                   <div class="py-xl-5 py-3 px-xl-5 px-lg-5 px-md-5 px-sm-3 paragraph" data-entity-id="<?= $paragraph->id; ?>">
                     <!-- <h5><?php SearchResultHelper::highlightFieldContent($paragraph, 'title'); ?></h4> -->
                     <div class=" paragraph-text">
-                      <?= SearchResultHelper::highlightFieldContent($paragraph, 'text', 'markdown', $model->singleLineMode); ?>
+                      <?= SearchResultHelper::highlightFieldContent($paragraph, 'content', 'markdown', $model->singleLineMode); ?>
                     </div>
                   </div>
                 </div>
                 <div class="card-footer">
-                  <div class="icons d-print-none">
+                  <div class="icons d-print-none">                    
                     <i id="bookmark-494329" class="bi bi-bookmark" style="font-size: 1.2rem" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Добавить в закладки" data-href="/bookmark?id=494329" data-method="post"></i>
                     <i id="share-494329" class="bi bi-share" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Поделиться"></i>
                   </div>

@@ -40,12 +40,12 @@ $fragment = Yii::$app->request->get()['f'] ?? 0;
         <div class="card-body p-0">
         <div class="px-xl-5 px-lg-5 px-md-5 px-sm-3 paragraph">
             <?php foreach ($paragraphs as $paragraph): ?>
-              <div id="<?= $paragraph->position;?>" data-entity-id="<?= $paragraph->id; ?>"
-                class="<?= $fragment == $paragraph->position ? "card border-primary" : "" ?>">
+              <div id="<?= $paragraph->chunk;?>" data-entity-id="<?= $paragraph->id; ?>"
+                class="<?= $fragment == $paragraph->chunk ? "card border-primary" : "" ?>">
                 <div class="card-body">
 
                 <div class="paragraph-text">
-                  <?= TextProcessor::widget(['text' => $paragraph->text]); ?>
+                  <?= TextProcessor::widget(['text' => $paragraph->content]); ?>
                 </div>
                 </div>
               </div>                

@@ -14,9 +14,12 @@ class Paragraph extends Model
     public string $author_attr;
     public string $title;
     public string $title_attr;
-    public string $text;
-    public string $position;
-    public string $length;
+    public string $content;
+    public string $chunk;
+    public string $char_count;
+    public string $word_count;
+    public string $language;
+    public string $ocr_quality; 
     public array $highlight;
     public string $source_uuid;
     public string $source;
@@ -33,9 +36,9 @@ class Paragraph extends Model
     ): self {
         $paragraph = new static();
 
-        $paragraph->text = $text;
-        $paragraph->position = $position;
-        $paragraph->length = $length;
+        $paragraph->content = $text;
+        $paragraph->chunk = $position;
+        $paragraph->cahr_count = $length;
         $paragraph->highlight = $highlight;
 
         return $paragraph;

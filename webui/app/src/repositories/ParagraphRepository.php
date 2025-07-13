@@ -79,7 +79,7 @@ class ParagraphRepository
 
         // Если нет совпадений no_match_size возвращает пустое поле для подсветки
         $search->highlight(
-            ['title', 'text'],
+            ['title', 'content'],
             [
                 'limit' => 0,
                 'no_match_size' => 0,
@@ -164,7 +164,7 @@ class ParagraphRepository
         }
 
         $search->highlight(
-            ['genre', 'author', 'title', 'text'],
+            ['genre', 'author', 'title', 'content'],
             [
                 'limit' => 0,
                 'no_match_size' => 0,
@@ -208,7 +208,7 @@ class ParagraphRepository
         }
 
         $search->highlight(
-            ['genre', 'author', 'title', 'text'],
+            ['genre', 'author', 'title', 'content'],
             [
                 'limit' => 0,
                 'no_match_size' => 0,
@@ -243,7 +243,7 @@ class ParagraphRepository
         $search->facet('source_uuid');
 
         $search->highlight(
-            ['genre', 'author', 'title', 'text'],
+            ['genre', 'author', 'title', 'content'],
             [
                 'limit' => 0,
                 'no_match_size' => 0,
@@ -298,7 +298,7 @@ class ParagraphRepository
         }
 
         $search->highlight(
-            ['text'],
+            ['content'],
             [
                 'limit' => 0,
                 'no_match_size' => 0,
@@ -349,7 +349,7 @@ class ParagraphRepository
         $this->search->search($query);
 
         $search->highlight(
-            ['text'],
+            ['content'],
             [
                 'limit' => 0,
                 'no_match_size' => 0,
