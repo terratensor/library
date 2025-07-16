@@ -52,23 +52,23 @@ class ParagraphRepository
         $queryString = SearchHelper::escapeUnclosedQuotes($queryString);
 
         if ($form->genre !== '') {
-            $this->search->filter('genre_attr', 'in', $form->genre);
+            $this->search->filter('genre', 'in', $form->genre);
         }
 
         if ($form->author !== '') {
-            $this->search->filter('author_attr', 'in', $form->author);
+            $this->search->filter('author', 'in', $form->author);
         }
 
         if ($form->title !== '') {
-            $this->search->filter('title_attr', 'in', $form->title);
+            $this->search->filter('title', 'in', $form->title);
         }
 
         // Выполняем поиск если установлен фильтр или установлен строка поиска
         $search = $this->search->search($form->query);
 
-        $search->facet('genre_attr', 'genre_group', 100);
-        $search->facet('author_attr', 'author_group', 100);
-        $search->facet('title_attr', 'title_group', 100);
+        $search->facet('genre', 'genre_group', 100);
+        $search->facet('author', 'author_group', 100);
+        $search->facet('title', 'title_group', 100);
 
         // Включаем нечёткий поиск, если строка не пустая или не содержит символы, используемые в полнотекстовом поиске
         // и не сдержит hash автварки пользователя
@@ -102,19 +102,19 @@ class ParagraphRepository
                 'aggs' => [
                     'genre_group' => [
                         'terms' => [
-                            'field' => 'genre_attr',
+                            'field' => 'genre',
                             'size' => 100
                         ]
                     ],
                     'author_group' => [
                         'terms' => [
-                            'field' => 'author_attr',
+                            'field' => 'author',
                             'size' => 100
                         ]
                     ],
                     'title_group' => [
                         'terms' => [
-                            'field' => 'title_attr',
+                            'field' => 'title',
                             'size' => 100
                         ]
                     ]

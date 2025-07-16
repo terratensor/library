@@ -14,24 +14,21 @@ import (
 type PrepareParagraphs []Entry
 
 type Entry struct {
-	ID           *int64    `json:"id,omitempty"`
-	SourceUUID   uuid.UUID `json:"source_uuid"`
-	Source       string    `json:"source"`
-	Genre        string    `json:"genre"`
-	GenreAttr    string    `json:"genre_attr"`
-	Author       string    `json:"author"`
-	AuthorAttr   string    `json:"author_attr"`
-	BookName     string    `json:"title"`
-	BookNameAttr string    `json:"title_attr"`
-	Content      string    `json:"content"`
-	Language     string    `json:"language"` // "ru", "en", "de" и т.д.
-	Chunk        int       `json:"chunk"`
-	CharCount    int       `json:"char_count"`  // Реальное количество символов
-	WordCount    int       `json:"word_count"`  // Количество слов
-	OCRQuality   float32   `json:"ocr_quality"` // 0.0 - 1.0 (1.0 - идеальное качество)
-	Datetime     int64     `json:"datetime"`
-	CreatedAt    int64     `json:"created_at"`
-	UpdatedAt    int64     `json:"updated_at"`
+	ID         *int64    `json:"id,omitempty"`
+	SourceUUID uuid.UUID `json:"source_uuid"`
+	Source     string    `json:"source"`
+	Genre      string    `json:"genre"`
+	Author     string    `json:"author"`
+	BookName   string    `json:"title"`
+	Content    string    `json:"content"`
+	Language   string    `json:"language"` // "ru", "en", "de" и т.д.
+	Chunk      int       `json:"chunk"`
+	CharCount  int       `json:"char_count"`  // Реальное количество символов
+	WordCount  int       `json:"word_count"`  // Количество слов
+	OCRQuality float32   `json:"ocr_quality"` // 0.0 - 1.0 (1.0 - идеальное качество)
+	Datetime   int64     `json:"datetime"`
+	CreatedAt  int64     `json:"created_at"`
+	UpdatedAt  int64     `json:"updated_at"`
 }
 
 type StorageInterface interface {

@@ -38,7 +38,7 @@ services:
       - ./manticore/data:/var/lib/manticore
       - ./manticore/logs:/var/log/manticore
       # - manticore:/var/lib/manticore
-      # - manticore:/var/log/manticore
+      # - manticore:/var/log/manticore    
 
   manticore-proxy:
     container_name: library-manticore-proxy
