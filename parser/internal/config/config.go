@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Env            string    `yaml:"env" env-default:"development"`
 	Concurrency    int       `yaml:"concurrency" env-default:"12"`
+	MetadataOnly   bool      `yaml:"metadata_only"` // только метаданные, будет обрабатывать только имена файлов и создавать записи в таблицах авторов, категорий и заголовков без полного парсинга содержимого.
 	Volume         string    `yaml:"volume" env-default:"./volume"`
 	Manticore      Manticore `yaml:"manticore"`
 	BatchSize      int       `yaml:"batch_size" env-default:"3000"`

@@ -33,7 +33,9 @@ type Entry struct {
 
 type StorageInterface interface {
 	// Bulk index operations Post/bulk
-	Bulk(ctx context.Context, entries *[]Entry) error
+	// Bulk(ctx context.Context, entries *[]Entry) error
+	// Bulk index operations Post/bulk for all types
+	Bulk(ctx context.Context, docs interface{}) error
 }
 
 type Entries struct {
@@ -60,6 +62,19 @@ func (e Entries) Bulk(ctx context.Context, entries []Entry) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
+}
+
+// New methods for other models
+func (e Entries) BulkAuthors(ctx context.Context, authors []Author) error {
+	return e.store.Bulk(ctx, &authors)
+}
+
+func (e Entries) BulkCategories(ctx context.Context, categories []Category) error {
+	return e.store.Bulk(ctx, &categories)
+}
+
+func (e Entries) BulkTitles(ctx context.Context, titles []Title) error {
+	return e.store.Bulk(ctx, &titles)
 }
 
 func (e *Entry) DetectLanguage() {

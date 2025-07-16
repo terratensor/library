@@ -52,6 +52,14 @@ func main() {
 	// Инициализация парсера
 	prs := parser.NewParser(cfg, storage)
 
+	// Режим только метаданные
+	if cfg.MetadataOnly {
+		if err := processMetadata(ctx, prs, cfg, logger); err != nil {
+			logger.Error("error processing metadata", sl.Err(err))
+			os.Exit(1)
+		}
+		return
+	}
 	// Новый код для обработки tar-архивов
 	if isTarArchive(cfg.Volume) {
 		if err := processTarArchive(ctx, prs, cfg, logger); err != nil {
@@ -99,6 +107,12 @@ func main() {
 		pool := workerpool.NewPool(allTask, cfg.Concurrency)
 		pool.Run()
 	}
+
+	// Сохраняем все модели перед выходом
+	if err := prs.StoreModels(ctx); err != nil {
+		logger.Error("error storing models", sl.Err(err))
+	}
+
 	log.Println("all files done")
 }
 
@@ -171,4 +185,38 @@ func findFiles(rootDir string) ([]os.DirEntry, []string, error) {
 	}
 
 	return files, paths, nil
+}
+
+func processMetadata(ctx context.Context, prs *parser.Parser, cfg *config.Config, logger *slog.Logger) error {
+	logger.Info("running in metadata-only mode")
+	files, paths, err := findFiles(cfg.Volume)
+	if err != nil {
+		logger.Error("error reading directory", sl.Err(err))
+		os.Exit(1)
+	}
+
+	for n, file := range files {
+		select {
+		case <-ctx.Done():
+			logger.Info("processing interrupted by context")
+			os.Exit(0)
+		default:
+			logger.Debug("processing metadata for file",
+				slog.String("filename", file.Name()))
+			if err := prs.ProcessMetadataOnly(ctx, file, filepath.Dir(paths[n])); err != nil {
+				logger.Error("error processing file metadata",
+					slog.String("filename", file.Name()),
+					sl.Err(err))
+			}
+		}
+	}
+
+	// Сохраняем все метаданные
+	if err := prs.StoreModels(ctx); err != nil {
+		logger.Error("error storing metadata models", sl.Err(err))
+		return fmt.Errorf("error storing metadata models: %v", err)
+	}
+
+	logger.Info("metadata processing completed successfully")
+	return nil
 }

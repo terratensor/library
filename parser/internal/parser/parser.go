@@ -26,6 +26,11 @@ type Parser struct {
 	cfg      *config.Config
 	storage  *entry.Entries
 	reBase64 *regexp.Regexp
+	// Add these fields to track unique models
+	authors    map[string]entry.Author
+	categories map[string]entry.Category
+	titles     map[string]entry.Title
+	mu         sync.Mutex // To protect concurrent access to maps
 }
 
 // Глобальная переменная для хранения скомпилированного регулярного выражения
@@ -50,9 +55,12 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 	}
 
 	return &Parser{
-		cfg:      cfg,
-		storage:  storage,
-		reBase64: reBase64,
+		cfg:        cfg,
+		storage:    storage,
+		reBase64:   reBase64,
+		authors:    make(map[string]entry.Author),
+		categories: make(map[string]entry.Category),
+		titles:     make(map[string]entry.Title),
 	}
 }
 
@@ -182,6 +190,80 @@ func (d *dirEntry) IsDir() bool                { return d.isDir }
 func (d *dirEntry) Type() os.FileMode          { return 0 }
 func (d *dirEntry) Info() (os.FileInfo, error) { return nil, nil }
 
+func (p *Parser) processModels(ctx context.Context, titleList *book.TitleList) error {
+	// Process author
+	if titleList.Author != "" {
+		p.mu.Lock()
+		if _, exists := p.authors[titleList.Author]; !exists {
+			author := entry.NewAuthorFromTitleList(titleList)
+			p.authors[titleList.Author] = *author
+		}
+		p.mu.Unlock()
+	}
+
+	// Process category
+	if titleList.Genre != "" {
+		p.mu.Lock()
+		if _, exists := p.categories[titleList.Genre]; !exists {
+			category := entry.NewCategoryFromTitleList(titleList)
+			p.categories[titleList.Genre] = *category
+		}
+		p.mu.Unlock()
+	}
+
+	// Process title
+	if titleList.Title != "" {
+		p.mu.Lock()
+		if _, exists := p.titles[titleList.Title]; !exists {
+			title := entry.NewTitleFromTitleList(titleList)
+			p.titles[titleList.Title] = *title
+		}
+		p.mu.Unlock()
+	}
+
+	return nil
+}
+
+// Add this new method to store all collected models
+func (p *Parser) StoreModels(ctx context.Context) error {
+	// Convert maps to slices
+	var authors []entry.Author
+	for _, a := range p.authors {
+		authors = append(authors, a)
+	}
+
+	var categories []entry.Category
+	for _, c := range p.categories {
+		categories = append(categories, c)
+	}
+
+	var titles []entry.Title
+	for _, t := range p.titles {
+		titles = append(titles, t)
+	}
+
+	// Сохраняем в базу
+	if len(authors) > 0 {
+		if err := p.storage.BulkAuthors(ctx, authors); err != nil {
+			return fmt.Errorf("failed to store authors: %v", err)
+		}
+	}
+
+	if len(categories) > 0 {
+		if err := p.storage.BulkCategories(ctx, categories); err != nil {
+			return fmt.Errorf("failed to store categories: %v", err)
+		}
+	}
+
+	if len(titles) > 0 {
+		if err := p.storage.BulkTitles(ctx, titles); err != nil {
+			return fmt.Errorf("failed to store titles: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error {
 	select {
 	case <-ctx.Done():
@@ -197,6 +279,28 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 	titleList := book.NewTitleList(bookName)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
+
+	// Обрабатываем модели с блокировкой
+	p.mu.Lock()
+	if titleList.Author != "" {
+		if _, exists := p.authors[titleList.Author]; !exists {
+			author := entry.NewAuthorFromTitleList(titleList)
+			p.authors[titleList.Author] = *author
+		}
+	}
+	if titleList.Genre != "" {
+		if _, exists := p.categories[titleList.Genre]; !exists {
+			category := entry.NewCategoryFromTitleList(titleList)
+			p.categories[titleList.Genre] = *category
+		}
+	}
+	if titleList.Title != "" {
+		if _, exists := p.titles[titleList.Title]; !exists {
+			title := entry.NewTitleFromTitleList(titleList)
+			p.titles[titleList.Title] = *title
+		}
+	}
+	p.mu.Unlock()
 
 	switch extension {
 	case ".docx":
@@ -275,6 +379,11 @@ func (p *Parser) parseEPUB(ctx context.Context, filePath, filename string) error
 }
 
 func (p *Parser) runBuilder(ctx context.Context, r Reader, filename string, titleList *book.TitleList) error {
+
+	// Process models first
+	if err := p.processModels(ctx, titleList); err != nil {
+		return err
+	}
 
 	// position номер параграфа в индексе
 	position := 1
@@ -583,4 +692,57 @@ func splitMessageOnSentences(chunk string) []string {
 
 	// Возвращаем слайс предложений.
 	return result
+}
+
+// ProcessMetadataOnly обрабатывает только метаданные файлов
+func (p *Parser) ProcessMetadataOnly(ctx context.Context, file os.DirEntry, path string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	// _ := filepath.Clean(filepath.Join(path, file.Name()))
+	filename := file.Name()
+	extension := strings.ToLower(filepath.Ext(filename))
+
+	// Пропускаем неподдерживаемые форматы
+	if extension != ".docx" && extension != ".pdf" && extension != ".epub" {
+		return nil
+	}
+
+	bookName := filename[:len(filename)-len(extension)]
+	titleList := book.NewTitleList(bookName)
+	titleList.SourceUUID = uuid.New()
+	titleList.Source = filename
+
+	// Блокируем для безопасного доступа к мапам
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Обрабатываем автора
+	if titleList.Author != "" {
+		if _, exists := p.authors[titleList.Author]; !exists {
+			author := entry.NewAuthorFromTitleList(titleList)
+			p.authors[titleList.Author] = *author
+		}
+	}
+
+	// Обрабатываем категорию
+	if titleList.Genre != "" {
+		if _, exists := p.categories[titleList.Genre]; !exists {
+			category := entry.NewCategoryFromTitleList(titleList)
+			p.categories[titleList.Genre] = *category
+		}
+	}
+
+	// Обрабатываем заголовок
+	if titleList.Title != "" {
+		if _, exists := p.titles[titleList.Title]; !exists {
+			title := entry.NewTitleFromTitleList(titleList)
+			p.titles[titleList.Title] = *title
+		}
+	}
+
+	return nil
 }

@@ -23,9 +23,10 @@ type Client struct {
 }
 
 type Insert struct {
-	Index string      `json:"index"`
-	ID    *int64      `json:"id,omitempty"`
-	Doc   entry.Entry `json:"doc"`
+	Index string `json:"index"`
+	ID    *int64 `json:"id,omitempty"`
+	// Doc   entry.Entry `json:"doc"`
+	Doc interface{} `json:"doc"` // Changed to interface{} to support different types
 }
 
 type Root struct {
@@ -71,6 +72,7 @@ func tableExists(ctx context.Context, tableName string) bool {
 	showCreateTableRequest := apiClient.UtilsAPI.Sql(ctx).Body(showCreateTableQuery)
 
 	_, _, err := showCreateTableRequest.Execute()
+	// log.Printf("a: %v, b: %v, err: %v", a, b, err)
 	return err == nil
 }
 
@@ -99,24 +101,118 @@ func createTable(ctx context.Context, engine string, tbl string) error {
 	return nil
 }
 
-func (c *Client) Bulk(ctx context.Context, entries *[]entry.Entry) error {
+// func (c *Client) Bulk(ctx context.Context, entries *[]entry.Entry) error {
+// 	const op = "storage.manticore.Bulk"
+
+// 	var body strings.Builder
+// 	for _, e := range *entries {
+// 		jsonStr, err := json.Marshal(Root{
+// 			Insert: Insert{
+// 				Index: c.Index,
+// 				Doc:   e,
+// 			},
+// 		})
+
+// 		if err != nil {
+// 			return fmt.Errorf("%s: %w", op, err)
+// 		}
+
+// 		body.WriteString(string(jsonStr))
+// 		body.WriteString(",\n")
+// 	}
+
+// 	const maxRetries = 1000
+// 	const retryDelay = 100 * time.Millisecond
+
+// 	for attempt := 0; attempt < maxRetries; attempt++ {
+// 		_, _, err := c.apiClient.IndexAPI.Bulk(ctx).Body(body.String()).Execute()
+// 		if err == nil {
+// 			if attempt > 0 {
+// 				log.Printf("Successfully inserted data into Manticore after %d attempts", attempt+1)
+// 			}
+// 			break
+// 		}
+// 		if attempt < maxRetries-1 {
+// 			log.Printf("Failed to insert data into Manticore, retrying... (attempt %d/%d)", attempt+1, maxRetries)
+// 			log.Printf("Error: %v", err)
+// 			time.Sleep(retryDelay)
+// 			continue
+// 		}
+
+// 	}
+
+// 	return nil
+// }
+
+func (c *Client) Bulk(ctx context.Context, docs interface{}) error {
 	const op = "storage.manticore.Bulk"
 
 	var body strings.Builder
-	for _, e := range *entries {
-		jsonStr, err := json.Marshal(Root{
-			Insert: Insert{
-				Index: c.Index,
-				Doc:   e,
-			},
-		})
+	var indexName string
 
-		if err != nil {
-			return fmt.Errorf("%s: %w", op, err)
+	switch v := docs.(type) {
+	case *[]entry.Entry:
+		indexName = c.Index
+		for _, e := range *v {
+			jsonStr, err := json.Marshal(Root{
+				Insert: Insert{
+					Index: indexName,
+					Doc:   e,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("%s: %w", op, err)
+			}
+			body.WriteString(string(jsonStr))
+			body.WriteString(",\n")
 		}
-
-		body.WriteString(string(jsonStr))
-		body.WriteString(",\n")
+	case *[]entry.Author:
+		indexName = "authors"
+		for _, a := range *v {
+			jsonStr, err := json.Marshal(Root{
+				Insert: Insert{
+					Index: indexName,
+					Doc:   a,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("%s: %w", op, err)
+			}
+			body.WriteString(string(jsonStr))
+			body.WriteString(",\n")
+		}
+	case *[]entry.Category:
+		indexName = "categories"
+		for _, cat := range *v {
+			jsonStr, err := json.Marshal(Root{
+				Insert: Insert{
+					Index: indexName,
+					Doc:   cat,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("%s: %w", op, err)
+			}
+			body.WriteString(string(jsonStr))
+			body.WriteString(",\n")
+		}
+	case *[]entry.Title:
+		indexName = "titles"
+		for _, t := range *v {
+			jsonStr, err := json.Marshal(Root{
+				Insert: Insert{
+					Index: indexName,
+					Doc:   t,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("%s: %w", op, err)
+			}
+			body.WriteString(string(jsonStr))
+			body.WriteString(",\n")
+		}
+	default:
+		return fmt.Errorf("%s: unsupported type %T", op, v)
 	}
 
 	const maxRetries = 1000
@@ -126,17 +222,17 @@ func (c *Client) Bulk(ctx context.Context, entries *[]entry.Entry) error {
 		_, _, err := c.apiClient.IndexAPI.Bulk(ctx).Body(body.String()).Execute()
 		if err == nil {
 			if attempt > 0 {
-				log.Printf("Successfully inserted data into Manticore after %d attempts", attempt+1)
+				log.Printf("Successfully inserted data into %s after %d attempts", indexName, attempt+1)
 			}
 			break
 		}
 		if attempt < maxRetries-1 {
-			log.Printf("Failed to insert data into Manticore, retrying... (attempt %d/%d)", attempt+1, maxRetries)
+			log.Printf("Failed to insert data into %s, retrying... (attempt %d/%d)", indexName, attempt+1, maxRetries)
 			log.Printf("Error: %v", err)
 			time.Sleep(retryDelay)
 			continue
 		}
-
+		return fmt.Errorf("%s: failed after %d attempts: %w", op, maxRetries, err)
 	}
 
 	return nil
