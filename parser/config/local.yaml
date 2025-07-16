@@ -1,5 +1,6 @@
 env: "local" # Окружение - local, dev или prod
 concurrency: 20
+metadata_only: false
 volume: "../common/"
 manticore:
   engine: "rowwise"

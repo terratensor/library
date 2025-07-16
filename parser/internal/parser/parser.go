@@ -18,6 +18,7 @@ import (
 	"github.com/terratensor/library/parser/internal/config"
 	"github.com/terratensor/library/parser/internal/library/book"
 	"github.com/terratensor/library/parser/internal/library/entry"
+	"github.com/terratensor/library/parser/internal/metadata"
 	"github.com/terratensor/library/parser/internal/parser/brokendocx"
 	"github.com/terratensor/library/parser/internal/parser/docc"
 )
@@ -225,22 +226,10 @@ func (p *Parser) processModels(ctx context.Context, titleList *book.TitleList) e
 }
 
 // Add this new method to store all collected models
-func (p *Parser) StoreModels(ctx context.Context) error {
-	// Convert maps to slices
-	var authors []entry.Author
-	for _, a := range p.authors {
-		authors = append(authors, a)
-	}
-
-	var categories []entry.Category
-	for _, c := range p.categories {
-		categories = append(categories, c)
-	}
-
-	var titles []entry.Title
-	for _, t := range p.titles {
-		titles = append(titles, t)
-	}
+func (p *Parser) StoreModels(ctx context.Context, mp *metadata.Processor) error {
+	authors := mp.GetAuthors()
+	categories := mp.GetCategories()
+	titles := mp.GetTitles()
 
 	// Сохраняем в базу
 	if len(authors) > 0 {
@@ -695,54 +684,13 @@ func splitMessageOnSentences(chunk string) []string {
 }
 
 // ProcessMetadataOnly обрабатывает только метаданные файлов
-func (p *Parser) ProcessMetadataOnly(ctx context.Context, file os.DirEntry, path string) error {
+func (p *Parser) ProcessMetadataOnly(ctx context.Context, mp *metadata.Processor, file os.DirEntry, path string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	// _ := filepath.Clean(filepath.Join(path, file.Name()))
-	filename := file.Name()
-	extension := strings.ToLower(filepath.Ext(filename))
-
-	// Пропускаем неподдерживаемые форматы
-	if extension != ".docx" && extension != ".pdf" && extension != ".epub" {
-		return nil
-	}
-
-	bookName := filename[:len(filename)-len(extension)]
-	titleList := book.NewTitleList(bookName)
-	titleList.SourceUUID = uuid.New()
-	titleList.Source = filename
-
-	// Блокируем для безопасного доступа к мапам
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Обрабатываем автора
-	if titleList.Author != "" {
-		if _, exists := p.authors[titleList.Author]; !exists {
-			author := entry.NewAuthorFromTitleList(titleList)
-			p.authors[titleList.Author] = *author
-		}
-	}
-
-	// Обрабатываем категорию
-	if titleList.Genre != "" {
-		if _, exists := p.categories[titleList.Genre]; !exists {
-			category := entry.NewCategoryFromTitleList(titleList)
-			p.categories[titleList.Genre] = *category
-		}
-	}
-
-	// Обрабатываем заголовок
-	if titleList.Title != "" {
-		if _, exists := p.titles[titleList.Title]; !exists {
-			title := entry.NewTitleFromTitleList(titleList)
-			p.titles[titleList.Title] = *title
-		}
-	}
-
-	return nil
+	fullPath := filepath.Join(path, file.Name())
+	return mp.ProcessFile(fullPath)
 }

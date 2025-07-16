@@ -13,6 +13,7 @@ import (
 	"github.com/terratensor/library/parser/internal/lib/logger/handlers/slogpretty"
 	"github.com/terratensor/library/parser/internal/lib/logger/sl"
 	"github.com/terratensor/library/parser/internal/library/entry"
+	"github.com/terratensor/library/parser/internal/metadata"
 	"github.com/terratensor/library/parser/internal/parser"
 	"github.com/terratensor/library/parser/internal/storage/manticore"
 	"github.com/terratensor/library/parser/internal/utils"
@@ -33,6 +34,20 @@ func main() {
 	logger = logger.With(slog.String("env", cfg.Env)) // к каждому сообщению будет добавляться поле с информацией о текущем окружении
 
 	logger.Debug("logger debug mode enabled")
+
+	// Инициализация мета-процессора
+	metaCfg := metadata.Config{
+		LogFilePath: "metadata_errors.log",
+		Logger:      logger,
+	}
+
+	metaProcessor, err := metadata.NewProcessor(metaCfg)
+	if err != nil {
+		logger.Error("failed to initialize metadata processor", sl.Err(err))
+		os.Exit(1)
+	}
+	defer metaProcessor.Close()
+
 	logger.Debug("initializing manticore client",
 		slog.String("index", cfg.Manticore.Index),
 		slog.String("host", cfg.Manticore.Host),
@@ -54,7 +69,7 @@ func main() {
 
 	// Режим только метаданные
 	if cfg.MetadataOnly {
-		if err := processMetadata(ctx, prs, cfg, logger); err != nil {
+		if err := processMetadata(ctx, metaProcessor, prs, cfg, logger); err != nil {
 			logger.Error("error processing metadata", sl.Err(err))
 			os.Exit(1)
 		}
@@ -109,9 +124,9 @@ func main() {
 	}
 
 	// Сохраняем все модели перед выходом
-	if err := prs.StoreModels(ctx); err != nil {
-		logger.Error("error storing models", sl.Err(err))
-	}
+	// if err := prs.StoreModels(ctx, metaProcessor); err != nil {
+	// 	logger.Error("error storing models", sl.Err(err))
+	// }
 
 	log.Println("all files done")
 }
@@ -187,8 +202,9 @@ func findFiles(rootDir string) ([]os.DirEntry, []string, error) {
 	return files, paths, nil
 }
 
-func processMetadata(ctx context.Context, prs *parser.Parser, cfg *config.Config, logger *slog.Logger) error {
+func processMetadata(ctx context.Context, metaProcessor *metadata.Processor, prs *parser.Parser, cfg *config.Config, logger *slog.Logger) error {
 	logger.Info("running in metadata-only mode")
+
 	files, paths, err := findFiles(cfg.Volume)
 	if err != nil {
 		logger.Error("error reading directory", sl.Err(err))
@@ -196,27 +212,30 @@ func processMetadata(ctx context.Context, prs *parser.Parser, cfg *config.Config
 	}
 
 	for n, file := range files {
-		select {
-		case <-ctx.Done():
-			logger.Info("processing interrupted by context")
-			os.Exit(0)
-		default:
-			logger.Debug("processing metadata for file",
-				slog.String("filename", file.Name()))
-			if err := prs.ProcessMetadataOnly(ctx, file, filepath.Dir(paths[n])); err != nil {
-				logger.Error("error processing file metadata",
-					slog.String("filename", file.Name()),
-					sl.Err(err))
-			}
+		if err := prs.ProcessMetadataOnly(ctx, metaProcessor, file, filepath.Dir(paths[n])); err != nil {
+			logger.Error("error processing file metadata",
+				slog.String("filename", file.Name()),
+				sl.Err(err))
 		}
 	}
 
-	// Сохраняем все метаданные
-	if err := prs.StoreModels(ctx); err != nil {
-		logger.Error("error storing metadata models", sl.Err(err))
-		return fmt.Errorf("error storing metadata models: %v", err)
+	// Сохраняем отчеты
+	if err := metaProcessor.SaveDuplicatesReport("duplicates_report.txt"); err != nil {
+		logger.Error("failed to save duplicates report", sl.Err(err))
 	}
 
-	logger.Info("metadata processing completed successfully")
+	// Сохраняем модели в базу
+	if err := prs.StoreModels(ctx, metaProcessor); err != nil {
+		logger.Error("failed to store models", sl.Err(err))
+		os.Exit(1)
+	}
+
+	report := metaProcessor.GenerateReport()
+	logger.Info("metadata processing completed",
+		slog.Int("files_processed", len(report.Entries)),
+		slog.Int("authors", len(metaProcessor.GetAuthors())),
+		slog.Int("categories", len(metaProcessor.GetCategories())),
+		slog.Int("titles", len(metaProcessor.GetTitles())),
+		slog.Int("duplicates_found", len(report.Duplicates)))
 	return nil
 }
