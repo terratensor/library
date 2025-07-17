@@ -44,52 +44,62 @@ class ParagraphRepository
      * @return Search
      * "query_string" accepts an input string as a full-text query in MATCH() syntax
      */
-    public function findByQueryStringNew(
-        string $queryString,
-        ?SearchForm $form = null
-    ): Search {
-        $queryString = SearchHelper::processStringWithURLs($queryString);
-        $queryString = SearchHelper::escapeUnclosedQuotes($queryString);
+    public function findByQueryStringNew(string $queryString, ?SearchForm $form = null): Search {
 
-        if ($form->genre !== '') {
-            $this->search->filter('genre', 'in', $form->genre);
-        }
+    $queryString = SearchHelper::processStringWithURLs($queryString);
+    $queryString = SearchHelper::escapeUnclosedQuotes($queryString);
+    // Экранирует все скобки в строке, если найдена хоть одна непарная.
+    $queryString = SearchHelper::escapeUnclosedBrackets($queryString);
 
-        if ($form->author !== '') {
-            $this->search->filter('author', 'in', $form->author);
-        }
-
-        if ($form->title !== '') {
-            $this->search->filter('title', 'in', $form->title);
-        }
-
-        // Выполняем поиск если установлен фильтр или установлен строка поиска
-        $search = $this->search->search($form->query);
-
-        $search->facet('genre', 'genre_group', 100);
-        $search->facet('author', 'author_group', 100);
-        $search->facet('title', 'title_group', 100);
-
-        // Включаем нечёткий поиск, если строка не пустая или не содержит символы, используемые в полнотекстовом поиске
-        // и не сдержит hash автварки пользователя
-        if ($form->fuzzy) {
-            \Yii::$app->session->setFlash('success', "Включена опция «Нечёткий поиск». Для выключения уберите флажок в настройках поиска.");
-            static::applyFuzzy($search, true);
-        }
-
-        // Если нет совпадений no_match_size возвращает пустое поле для подсветки
-        $search->highlight(
-            ['title', 'content'],
-            [
-                'limit' => 0,
-                'no_match_size' => 0,
-                'pre_tags' => '<mark>',
-                'post_tags' => '</mark>'
-            ],
-        );
-
-        return $search;
+    if ($form->genre !== '') {
+        $this->search->filter('genre', 'in', $form->genre);
     }
+
+    if ($form->author !== '') {
+        $this->search->filter('author', 'in', $form->author);
+    }
+
+    if ($form->title !== '') {
+        $this->search->filter('title', 'in', $form->title);
+    }
+    
+    if ($form->query !== '') {
+        // Проверяем, содержит ли запрос какие-либо из поисковых конструкций. Field search operator @author, @title, @genre, @content
+        $hasFieldSearchOperator = preg_match('/@(title|author|genre|content)\b/', $queryString);
+        
+        // Добавляем @content только если нет других директив
+        if (!$hasFieldSearchOperator) {
+            $queryString = "@content {$queryString}";
+        }
+    }
+    
+    // Выполняем поиск если установлен фильтр или установлена строка поиска
+    $search = $this->search->search($queryString);
+
+    $search->facet('genre', 'genre_group', 100);
+    $search->facet('author', 'author_group', 100);
+    $search->facet('title', 'title_group', 100);
+
+    // Включаем нечёткий поиск, если строка не пустая или не содержит символы, используемые в полнотекстовом поиске
+    // и не содержит hash автварки пользователя
+    if ($form->fuzzy) {
+        Yii::$app->session->setFlash('success', "Включена опция «Нечёткий поиск». Для выключения уберите флажок в настройках поиска.");
+        static::applyFuzzy($search, true);
+    }
+
+    // Если нет совпадений no_match_size возвращает пустое поле для подсветки
+    $search->highlight(
+        ['content'],
+        [
+            'limit' => 0,
+            'no_match_size' => 0,
+            'pre_tags' => '<mark>',
+            'post_tags' => '</mark>'
+        ],
+    );
+
+    return $search;
+}
 
     public function findAggsAll(SearchForm $form): array|Response
     {
