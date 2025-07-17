@@ -322,4 +322,70 @@ class SearchHelper
 
         return $str;
     }
+
+    /**
+     * Экранирует в строке все скобки, если они не закрыты или закрыты но не открыты
+     *          
+     * @param string $string The string to escape.
+     * @return string Экранированная строка, если исходная строка содержит незакрытые скобки, в противном случае исходная
+     * строка.
+     */
+    public static function escapeUnclosedBrackets(string $string)
+    {
+        // Проверяем, что строка не пустая
+        if (strlen($string) === 0) {
+            return $string;
+        }
+
+        $open_stack = [];
+        $close_stack = [];
+
+        for ($i = 0; $i < strlen($string); $i++) {
+            $char = $string[$i];
+
+            if ($char === '(') {
+                // Добавляем открывающуюся скобку в стек
+                $open_stack[$i] = $char;
+            } elseif ($char === ')') {
+                // Добавляем закрывающуюся скобку в стек
+                $close_stack[$i] = $char;
+            }
+        }
+        // Если любой из стеков не содержит записанных скобок, то экарниурем все скобки
+        if (count($open_stack) === 0 || count($close_stack) === 0) {
+            return self::escapeAllBrackets($string);
+        }
+        // Если количество открывающихся скобок не равно количеству закрывающихся скобок
+        if (count($open_stack) !== count($close_stack)) {
+            // экранировать все скобки
+            return self::escapeAllBrackets($string);
+        }
+        // Предыдущих условий недостаточно, т.к. существуют сцеанрии, 
+        // когда первой стоит закрывающая скобка, а открывающая после, например )запрос(
+        // Проверяем если минимальное занчение индекса открываюещего стэке больше чем минимальное значение индекса закрывающего,
+        // значит ппоследовательность скобок нарушена, и экранируем все скобки
+        if (min(array_keys($open_stack)) > min(array_keys($close_stack))) {
+            // экранировать все скобки
+            return self::escapeAllBrackets($string);
+        }
+
+        // Проверяем, сценарий, когда открывающая и закрывающие расположены рядом и не содержат символов между скобок, 
+        // например, запрос(), если это так, то экранируем все скобки в строке
+        foreach ($open_stack as $key => $value) {
+            if (key_exists($key + 1, $close_stack)) {
+                // экранировать все скобки
+                return self::escapeAllBrackets($string);
+            }
+        }
+
+        return $string;
+    }
+
+    // экранировать все скобки
+    private static function escapeAllBrackets(string $string): string
+    {
+        $string = str_replace('(', '\\(', $string);
+        $string = str_replace(')', '\\)', $string);
+        return $string;
+    }
 }
