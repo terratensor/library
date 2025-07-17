@@ -138,9 +138,37 @@ echo Html::endForm();
                   </div>
                 </div>
                 <div class="card-footer">
-                  <div class="icons d-print-none">                    
-                    <i id="bookmark-494329" class="bi bi-bookmark" style="font-size: 1.2rem" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Добавить в закладки" data-href="/bookmark?id=494329" data-method="post"></i>
-                    <i id="share-494329" class="bi bi-share" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-title="Поделиться"></i>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <!-- Левый блок с иконками и статистикой -->
+                    <div class="icons-stats d-flex align-items-center gap-3">
+                      <div class="icons d-print-none d-flex align-items-center gap-2">
+                        <i id="bookmark-<?= $paragraph->id ?>" class="bi bi-bookmark" style="font-size: 1.2rem;  margin-top: -8px"
+                          data-bs-toggle="tooltip" data-bs-placement="bottom"
+                          data-bs-title="Добавить в закладки"
+                          data-href="/bookmark?id=<?= $paragraph->id ?>"
+                          data-method="post"></i>
+                        <i id="share-<?= $paragraph->id ?>" class="bi bi-share" style="font-size: 1.2rem;  margin-top: -8px"
+                          data-bs-toggle="tooltip" data-bs-placement="bottom"
+                          data-bs-title="Поделиться"></i>
+                      </div>
+                      <div class="text-muted small" style="line-height: 1.2; padding-top: 2px">
+                        Символов: <?= $paragraph->char_count ?>, слов: <?= $paragraph->word_count ?>
+                      </div>
+                    </div>
+
+                    <!-- Правый блок с источником -->
+                    <div class="source d-flex align-items-center gap-2">
+                      <span data-bs-toggle="tooltip" data-bs-placement="left"
+                        data-bs-title="<?= Html::encode($paragraph->source) ?>"
+                        style="line-height: 1.2">
+                        Источник
+                      </span>
+                      <i class="bi bi-clipboard copy-source"
+                        style="cursor: pointer; font-size: 1.2rem; margin-top: -8px"
+                        data-bs-toggle="tooltip" data-bs-placement="left"
+                        data-bs-title="Копировать источник"
+                        data-source="<?= Html::encode($paragraph->source) ?>"></i>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -348,6 +376,57 @@ $(document).on('click', '.filter-badge .close', function(e) {
     e.preventDefault();
     window.location.href = $(this).attr('href');
 });
+
+   // Обработчик копирования источника
+  $('.copy-source').on('click', function() {
+    const sourceText = $(this).data('source');
+    const tooltip = bootstrap.Tooltip.getInstance(this);
+    
+    // Создаем временный textarea для копирования
+    const textarea = document.createElement('textarea');
+    textarea.value = sourceText;
+    textarea.style.position = 'fixed';  // Чтобы не было прокрутки страницы
+    document.body.appendChild(textarea);
+    textarea.select();
+    
+    try {
+      // Пробуем использовать современный API
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(sourceText).then(function() {
+          showCopiedTooltip(tooltip, this);
+        }.bind(this));
+      } else {
+        // Старый метод для браузеров без Clipboard API
+        const success = document.execCommand('copy');
+        if (success) {
+          showCopiedTooltip(tooltip, this);
+        } else {
+          throw new Error('Copy command failed');
+        }
+      }
+    } catch (err) {
+      console.error('Ошибка копирования:', err);
+      // Показываем сообщение об ошибке
+      $(this).attr('data-bs-title', 'Ошибка копирования');
+      tooltip.show();
+      setTimeout(() => {
+        $(this).attr('data-bs-title', 'Копировать источник');
+        tooltip.hide();
+      }, 2000);
+    } finally {
+      // Удаляем временный элемент
+      document.body.removeChild(textarea);
+    }
+  });
+  
+  function showCopiedTooltip(tooltip, element) {
+    $(element).attr('data-bs-title', 'Скопировано!');
+    tooltip.show();
+    setTimeout(() => {
+      $(element).attr('data-bs-title', 'Копировать источник');
+      tooltip.hide();
+    }, 2000);
+  }
 
 JS;
 

@@ -5,3 +5,6 @@ manticore/*
 build/*
 backup/*
 secrets/*
+flibusta_2025_21388
+parser/duplicates_report.txt
+parser/metadata_errors.log
