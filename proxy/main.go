@@ -20,6 +20,11 @@ type ErrorResponse struct {
 	} `json:"error"`
 }
 
+// ManticoreErrorResponse формат ошибки, который понимает Manticoresearch клиент
+type ManticoreErrorResponse struct {
+	Error string `json:"error"`
+}
+
 // Config содержит конфигурацию прокси
 type Config struct {
 	APIKey          string
@@ -125,7 +130,16 @@ func createHandler(proxy *httputil.ReverseProxy, apiKey string) http.Handler {
 
 		// Проверка API ключа
 		if r.Header.Get("X-API-Key") != apiKey {
-			sendJSONError(w, "Unauthorized", "Invalid API key", http.StatusUnauthorized)
+			w.WriteHeader(http.StatusUnauthorized)
+
+			// Формируем ответ в формате, который ожидает Manticoresearch клиент
+			response := ManticoreErrorResponse{
+				Error: "Invalid API key",
+			}
+
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				log.Printf("Error encoding JSON response: %v", err)
+			}
 			return
 		}
 
