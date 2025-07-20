@@ -79,7 +79,7 @@ func tableExists(ctx context.Context, tableName string) bool {
 func createTable(ctx context.Context, engine string, tbl string) error {
 	const op = "storage.manticore.createTable"
 
-	settings := fmt.Sprintf(`engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru, libstemmer_ru, libstemmer_en' index_sp='1' blend_mode='trim_none, skip_pure' blend_chars='-, _, @, &' expand_keywords='1' overshort_step='0' min_stemming_len='4'`, engine)
+	settings := fmt.Sprintf(`engine='%v' min_infix_len='3' index_exact_words='1' morphology='stem_en, stem_ru, libstemmer_ru, libstemmer_en' index_sp='1' blend_mode='trim_none, skip_pure' blend_chars='-, _, @, &' expand_keywords='1' overshort_step='0'`, engine)
 
 	var query string
 	switch tbl {
