@@ -3,7 +3,10 @@ package entry
 import (
 	"context"
 	"fmt"
+	"unicode"
+	"unicode/utf8"
 
+	"github.com/abadojack/whatlanggo"
 	"github.com/google/uuid"
 )
 
@@ -17,14 +20,22 @@ type Entry struct {
 	Genre      string    `json:"genre"`
 	Author     string    `json:"author"`
 	BookName   string    `json:"title"`
-	Text       string    `json:"text"`
-	Position   int       `json:"position"`
-	Length     int       `json:"length"`
+	Content    string    `json:"content"`
+	Language   string    `json:"language"` // "ru", "en", "de" и т.д.
+	Chunk      int       `json:"chunk"`
+	CharCount  int       `json:"char_count"`  // Реальное количество символов
+	WordCount  int       `json:"word_count"`  // Количество слов
+	OCRQuality float32   `json:"ocr_quality"` // 0.0 - 1.0 (1.0 - идеальное качество)
+	Datetime   int64     `json:"datetime"`
+	CreatedAt  int64     `json:"created_at"`
+	UpdatedAt  int64     `json:"updated_at"`
 }
 
 type StorageInterface interface {
 	// Bulk index operations Post/bulk
-	Bulk(ctx context.Context, entries *[]Entry) error
+	// Bulk(ctx context.Context, entries *[]Entry) error
+	// Bulk index operations Post/bulk for all types
+	Bulk(ctx context.Context, docs interface{}) error
 }
 
 type Entries struct {
@@ -51,4 +62,70 @@ func (e Entries) Bulk(ctx context.Context, entries []Entry) error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
+}
+
+// New methods for other models
+func (e Entries) BulkAuthors(ctx context.Context, authors []Author) error {
+	return e.store.Bulk(ctx, &authors)
+}
+
+func (e Entries) BulkCategories(ctx context.Context, categories []Category) error {
+	return e.store.Bulk(ctx, &categories)
+}
+
+func (e Entries) BulkTitles(ctx context.Context, titles []Title) error {
+	return e.store.Bulk(ctx, &titles)
+}
+
+func (e *Entry) DetectLanguage() {
+	info := whatlanggo.Detect(e.Content)
+	e.Language = info.Lang.Iso6391() // "ru", "en" и т.д.
+}
+
+func (e *Entry) CalculateCharCount() {
+	e.CharCount = utf8.RuneCountInString(e.Content)
+}
+
+func (e *Entry) CalculateWordCount() {
+	inWord := false
+	count := 0
+
+	for _, r := range e.Content {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			if !inWord {
+				count++
+				inWord = true
+			}
+		} else {
+			inWord = false
+		}
+	}
+
+	e.WordCount = count
+}
+
+func (e *Entry) CalculateOCRQuality() {
+	strangeChars := 0
+	totalChars := 0
+
+	for _, r := range e.Content {
+		if r == ' ' || r == '\n' || r == '\t' {
+			continue
+		}
+		totalChars++
+
+		// Проверяем на "странные" символы
+		if r > unicode.MaxASCII && !unicode.Is(unicode.Cyrillic, r) && !unicode.Is(unicode.Latin, r) {
+			strangeChars++
+		}
+	}
+
+	if totalChars == 0 {
+		e.OCRQuality = 1.0
+		return
+	}
+
+	quality := 1.0 - float32(strangeChars)/float32(totalChars)
+	// Гарантируем диапазон 0.0-1.0
+	e.OCRQuality = max(0.0, min(1.0, quality))
 }

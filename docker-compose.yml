@@ -1,43 +1,28 @@
 services:
   app:
-    image: ${REGISTRY}/common-library-app:${IMAGE_TAG}
-    networks:      
-      - library-net
+    container_name: library-app
+    image: yiisoftware/yii2-php:8.1-apache
+    restart: always
     environment:
       APP_ENV: dev
-      COMPOSER_ALLOW_SUPERUSER: 1
-      FRONTEND_URL: 'http://localhost:8030'
-      GH_REPO_URL: 'https://github.com/terratensor/regular-library'
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD_FILE: /run/secrets/app_db_password
-      POSTGRES_DB: common-library
-      PAGE_SIZE: 50
-      URL_SHORTENER_HOST: url-shortener:8000
-      URL_SHORTENER_URL: http://localhost
-      COOKIE_DOMAIN: localhost
-      COOKIE_VALIDATION_KEY_FILE: /run/secrets/app_cookie_validation_key
-      MANTICORE_DB_NAME_COMMON: library
-      MANTICORE_MAX_MATCHES: 1000
-      SHORT_LINK_ENABLE: 0
-      CLEAN_DESIGN: 1
-    secrets:
-      - app_db_password
-      - app_cookie_validation_key
-    # volumes:
-    #   - ~/.composer-docker/cache:/root/.composer/cache:delegated
-    #   - ./app:/app:delegated
+      FRONTEND_URL: 'http://localhost'
+      GH_REPO_URL: 'https://github.com/terratensor/kob-library-app'
+      MANTICORE_DB_NAME_COMMON: 'library2025'
+    volumes:
+      - ~/.composer-docker/cache:/root/.composer/cache:delegated
+      - ./webui/app:/app:delegated
     ports:
-      - '8030:80'
-
+      - '80:80'
+    networks:
+      - library-net
 
   manticore:
     container_name: library-manticore
     image: manticoresearch/manticore
+    restart: always
     ports:
-      - "127.0.0.1:9308:9308"
+      - "127.0.0.1:9308:9308" # Локально для отладки (необязательно)
     networks:
-      - traefik-public
       - library-net
     ulimits:
       nproc: 65535
@@ -50,35 +35,35 @@ services:
     environment:
       - EXTRA=1
     volumes:
-      - manticore:/var/lib/manticore
-      - manticore:/var/log/manticore      
-        # - ./manticore/var/log:/var/log/manticore
-        # - ./manticore/var/lib:/var/lib/manticore
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=traefik-public
-      - traefik.http.routers.library-search.rule=Host(`library.localhost`)
-      - traefik.http.routers.library-search.entryPoints=http
-      - traefik.http.services.library-search.loadBalancer.server.port=9308
-      - traefik.http.middlewares.library-headers.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH
-      - traefik.http.middlewares.library-headers.headers.accesscontrolalloworiginlist=*
-      - traefik.http.middlewares.library-headers.headers.accesscontrolallowheaders=*
-      - traefik.http.middlewares.library-headers.headers.accesscontrolmaxage=100
-      - traefik.http.middlewares.library-headers.headers.addvaryheader=true
-      - traefik.http.routers.library-search.middlewares=library-headers
+      - ./manticore/data:/var/lib/manticore
+      - ./manticore/logs:/var/log/manticore
+      # - manticore:/var/lib/manticore
+      # - manticore:/var/log/manticore    
 
-volumes:
-  manticore:
+  manticore-proxy:
+    container_name: library-manticore-proxy
+    build: ./proxy
+    restart: always
+    ports:
+      - "1122:9308" # Наружу 1122 → внутри 9308
+    networks:
+      - library-net
+    environment:
+      - MANTICORE_API_KEY_FILE=/run/secrets/manticore_api_key
+      - MANTICORE_HOST=manticore:9308 # Адрес Manticore в Docker-сети
+    secrets:
+      - manticore_api_key
+    depends_on:
+      - manticore
+
+# volumes:
+#   manticore:
+
 
 secrets:
-  app_db_password:
-    file: ./secrets/app_db_password
-  app_cookie_validation_key:
-    file: ./secrets/app_cookie_validation_key
+  manticore_api_key:
+    file: ./secrets/manticore_api_key
 
 networks:
-  traefik-public:
-    external: true
   library-net:
     name: library-net
-    external: true
