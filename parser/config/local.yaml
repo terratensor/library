@@ -2,6 +2,7 @@ env: "local" # Окружение - local, dev или prod
 concurrency: 20
 metadata_only: false
 volume: "../common/"
+genres_map_path: "./config/genres_map.csv"
 manticore:
   engine: "rowwise"
   host: "localhost"

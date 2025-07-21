@@ -3,6 +3,7 @@ package parser
 import (
 	"archive/tar"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
@@ -31,7 +32,8 @@ type Parser struct {
 	authors    map[string]entry.Author
 	categories map[string]entry.Category
 	titles     map[string]entry.Title
-	mu         sync.Mutex // To protect concurrent access to maps
+	mu         sync.Mutex        // To protect concurrent access to maps
+	genresMap  map[string]string // Genres mapping
 }
 
 // Глобальная переменная для хранения скомпилированного регулярного выражения
@@ -55,6 +57,32 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		reBase64 = regexp.MustCompile(`(?:[A-Za-z0-9+/]{40,}={0,2}|iVBORw0KGgo[^"]+)`)
 	}
 
+	// Load genres map
+	genresMap := make(map[string]string)
+	if cfg.GenresMapPath != "" {
+		file, err := os.Open(cfg.GenresMapPath)
+		if err != nil {
+			log.Printf("Warning: could not open genres map file: %v", err)
+		} else {
+			defer file.Close()
+
+			reader := csv.NewReader(file)
+			reader.Comma = ','
+			reader.FieldsPerRecord = 2
+
+			records, err := reader.ReadAll()
+			if err != nil {
+				log.Printf("Warning: could not read genres map file: %v", err)
+			} else {
+				for _, record := range records {
+					if len(record) == 2 {
+						genresMap[record[0]] = record[1]
+					}
+				}
+			}
+		}
+	}
+
 	return &Parser{
 		cfg:        cfg,
 		storage:    storage,
@@ -62,6 +90,7 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		authors:    make(map[string]entry.Author),
 		categories: make(map[string]entry.Category),
 		titles:     make(map[string]entry.Title),
+		genresMap:  genresMap, // Add this lin
 	}
 }
 
@@ -164,7 +193,7 @@ func (p *Parser) ParseWithOrigName(ctx context.Context, file os.DirEntry, path, 
 	extension := strings.ToLower(filepath.Ext(filename))
 	bookName := filename[:len(filename)-len(extension)]
 
-	titleList := book.NewTitleList(bookName)
+	titleList := book.NewTitleList(bookName, p.genresMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -265,7 +294,7 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 	extension := strings.ToLower(filepath.Ext(filename))
 	bookName := filename[:len(filename)-len(extension)]
 
-	titleList := book.NewTitleList(bookName)
+	titleList := book.NewTitleList(bookName, p.genresMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -304,7 +333,7 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 }
 
 func (p *Parser) parseDocx(ctx context.Context, filePath, filename string) error {
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)), p.genresMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -346,7 +375,7 @@ func (p *Parser) parsePDF(ctx context.Context, filePath, filename string) error 
 		return fmt.Errorf("PDF processing is disabled in config")
 	}
 
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)), p.genresMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -359,7 +388,7 @@ func (p *Parser) parseEPUB(ctx context.Context, filePath, filename string) error
 		return fmt.Errorf("EPUB processing is disabled in config")
 	}
 
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)), p.genresMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
