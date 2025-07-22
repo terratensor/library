@@ -302,26 +302,26 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 	titleList.Source = filename
 
 	// Обрабатываем модели с блокировкой
-	p.mu.Lock()
-	if titleList.Author != "" {
-		if _, exists := p.authors[titleList.Author]; !exists {
-			author := entry.NewAuthorFromTitleList(titleList)
-			p.authors[titleList.Author] = *author
-		}
-	}
-	if titleList.Genre != "" {
-		if _, exists := p.categories[titleList.Genre]; !exists {
-			category := entry.NewCategoryFromTitleList(titleList)
-			p.categories[titleList.Genre] = *category
-		}
-	}
-	if titleList.Title != "" {
-		if _, exists := p.titles[titleList.Title]; !exists {
-			title := entry.NewTitleFromTitleList(titleList)
-			p.titles[titleList.Title] = *title
-		}
-	}
-	p.mu.Unlock()
+	// p.mu.Lock()
+	// if titleList.Author != "" {
+	// 	if _, exists := p.authors[titleList.Author]; !exists {
+	// 		author := entry.NewAuthorFromTitleList(titleList)
+	// 		p.authors[titleList.Author] = *author
+	// 	}
+	// }
+	// if titleList.Genre != "" {
+	// 	if _, exists := p.categories[titleList.Genre]; !exists {
+	// 		category := entry.NewCategoryFromTitleList(titleList)
+	// 		p.categories[titleList.Genre] = *category
+	// 	}
+	// }
+	// if titleList.Title != "" {
+	// 	if _, exists := p.titles[titleList.Title]; !exists {
+	// 		title := entry.NewTitleFromTitleList(titleList)
+	// 		p.titles[titleList.Title] = *title
+	// 	}
+	// }
+	// p.mu.Unlock()
 
 	switch extension {
 	case ".docx":
