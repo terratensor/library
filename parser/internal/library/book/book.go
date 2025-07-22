@@ -20,12 +20,14 @@ func NewTitleList(str string, genresMap map[string]string) *TitleList {
 	matches := regexp.MustCompile(pattern).FindStringSubmatch(str)
 	if len(matches) > 3 {
 		genre := matches[1]
-		// Apply genre mapping if available
+
+		// Применяем маппинг жанров, если он доступен
 		if genresMap != nil {
 			if mapped, ok := genresMap[genre]; ok {
 				genre = mapped
 			}
 		}
+
 		return &TitleList{
 			Genre:  genre,
 			Author: matches[2],

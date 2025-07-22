@@ -33,7 +33,7 @@ type Parser struct {
 	categories map[string]entry.Category
 	titles     map[string]entry.Title
 	mu         sync.Mutex        // To protect concurrent access to maps
-	genresMap  map[string]string // Genres mapping
+	genresMap  map[string]string // Маппинг жанров
 }
 
 // Глобальная переменная для хранения скомпилированного регулярного выражения
@@ -57,7 +57,7 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		reBase64 = regexp.MustCompile(`(?:[A-Za-z0-9+/]{40,}={0,2}|iVBORw0KGgo[^"]+)`)
 	}
 
-	// Load genres map
+	// Загружаем маппинг жанров из CSV
 	genresMap := make(map[string]string)
 	if cfg.GenresMapPath != "" {
 		file, err := os.Open(cfg.GenresMapPath)
@@ -68,7 +68,8 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 
 			reader := csv.NewReader(file)
 			reader.Comma = ','
-			reader.FieldsPerRecord = 2
+			reader.FieldsPerRecord = 2 // Ожидаем ровно 2 колонки
+			reader.LazyQuotes = true   // Для обработки строк в кавычках
 
 			records, err := reader.ReadAll()
 			if err != nil {
@@ -76,7 +77,9 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 			} else {
 				for _, record := range records {
 					if len(record) == 2 {
-						genresMap[record[0]] = record[1]
+						original := strings.TrimSpace(record[0])
+						mapped := strings.TrimSpace(record[1])
+						genresMap[original] = mapped
 					}
 				}
 			}
@@ -90,7 +93,7 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		authors:    make(map[string]entry.Author),
 		categories: make(map[string]entry.Category),
 		titles:     make(map[string]entry.Title),
-		genresMap:  genresMap, // Add this lin
+		genresMap:  genresMap,
 	}
 }
 
