@@ -1,10 +1,13 @@
 package metadata
 
 import (
+	"encoding/csv"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -19,6 +22,8 @@ type Processor struct {
 	categories map[string]entry.Category
 	titles     map[string]entry.Title
 
+	genresMap map[string]string // Маппинг жанров
+
 	dupMutex    sync.Mutex
 	entryMutex  sync.Mutex
 	modelsMutex sync.Mutex
@@ -28,8 +33,9 @@ type Processor struct {
 }
 
 type Config struct {
-	LogFilePath string
-	Logger      *slog.Logger
+	GenresMapPath string
+	LogFilePath   string
+	Logger        *slog.Logger
 }
 
 func NewProcessor(cfg Config) (*Processor, error) {
@@ -38,12 +44,42 @@ func NewProcessor(cfg Config) (*Processor, error) {
 		return nil, fmt.Errorf("failed to open log file: %v", err)
 	}
 
+	// Загружаем маппинг жанров из CSV
+	genresMap := make(map[string]string)
+	if cfg.GenresMapPath != "" {
+		file, err := os.Open(cfg.GenresMapPath)
+		if err != nil {
+			log.Printf("Warning: could not open genres map file: %v", err)
+		} else {
+			defer file.Close()
+
+			reader := csv.NewReader(file)
+			reader.Comma = ','
+			reader.FieldsPerRecord = 2 // Ожидаем ровно 2 колонки
+			reader.LazyQuotes = true   // Для обработки строк в кавычках
+
+			records, err := reader.ReadAll()
+			if err != nil {
+				log.Printf("Warning: could not read genres map file: %v", err)
+			} else {
+				for _, record := range records {
+					if len(record) == 2 {
+						original := strings.TrimSpace(record[0])
+						mapped := strings.TrimSpace(record[1])
+						genresMap[original] = mapped
+					}
+				}
+			}
+		}
+	}
+
 	return &Processor{
 		duplicates: make(map[string][]string),
 		entries:    make(map[string]book.TitleList),
 		authors:    make(map[string]entry.Author),
 		categories: make(map[string]entry.Category),
 		titles:     make(map[string]entry.Title),
+		genresMap:  genresMap,
 		errorLog:   f,
 		logger:     cfg.Logger,
 	}, nil
@@ -72,7 +108,7 @@ func (mp *Processor) ProcessFile(path string) error {
 	}
 
 	bookName := filename[:len(filename)-len(ext)]
-	titleList := book.NewTitleList(bookName)
+	titleList := book.NewTitleList(bookName, mp.genresMap)
 	if titleList.Title == "" {
 		msg := fmt.Sprintf("invalid filename format: %s", filename)
 		mp.logError(msg)
