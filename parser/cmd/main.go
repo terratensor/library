@@ -37,8 +37,10 @@ func main() {
 
 	// Инициализация мета-процессора
 	metaCfg := metadata.Config{
-		LogFilePath: "metadata_errors.log",
-		Logger:      logger,
+		GenresMapPath:  cfg.GenresMapPath,
+		FoldersMapPath: cfg.FoldersMapPath,
+		LogFilePath:    "metadata_errors.log",
+		Logger:         logger,
 	}
 
 	metaProcessor, err := metadata.NewProcessor(metaCfg)

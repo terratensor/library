@@ -1,7 +1,9 @@
 package book
 
 import (
+	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -12,26 +14,66 @@ type TitleList struct {
 	Genre      string
 	Author     string
 	Title      string
+	Folder     string // Добавлено новое поле
 }
 
-// NewTitleList extracts the genre, author, and title from a string and returns a BookTitle object.
-//
-// The function takes a string as input and uses a regular expression pattern to match and extract the genre, author, and title from the string. If the pattern matches successfully and there are at least 4 matches, a new BookTitle object is created with the extracted values and returned. If the pattern does not match or there are less than 4 matches, a new BookTitle object is created with the input string as the title and returned.
-//
-// Parameters:
-// - str: The input string from which to extract the genre, author, and title.
-//
-// Returns:
-// - *TitleList: A pointer to a TitleList object containing the extracted genre, author, and title. If the pattern does not match or there are less than 4 matches, the title field of the BookTitle object will contain the input string.
-func NewTitleList(str string) *TitleList {
-	const pattern = `([^_]+)_([^—]+) — (.+)`
-	matches := regexp.MustCompile(pattern).FindStringSubmatch(str)
-	if len(matches) > 3 {
-		return &TitleList{
-			Genre:  matches[1],
-			Author: matches[2],
-			Title:  matches[3],
-		}
+// NewTitleList создает новый TitleList из полного пути файла
+func NewTitleList(filePath string, genresMap, foldersMap map[string]string) *TitleList {
+	// Извлекаем имя файла и папки
+	filename := filepath.Base(filePath)
+	baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
+	folder := filepath.Base(filepath.Dir(filePath))
+
+	// Применяем маппинг папок
+	if mapped, ok := foldersMap[folder]; ok {
+		folder = mapped
 	}
-	return &TitleList{Title: str}
+
+	tl := &TitleList{
+		Folder: folder,
+	}
+
+	// Улучшенное регулярное выражение:
+	// 1. Жанр: все до первого "_"
+	// 2. Автор: либо текст между "_" и " — ", либо пусто
+	// 3. Название: все после " — "
+	const pattern = `^([^_]+)_([^—]*) — (.+)$`
+	matches := regexp.MustCompile(pattern).FindStringSubmatch(baseName)
+
+	if len(matches) == 4 {
+		originalGenre := strings.TrimSpace(matches[1])
+		author := strings.TrimSpace(matches[2])
+		title := strings.TrimSpace(matches[3])
+
+		// Применяем маппинг жанров
+		genre := originalGenre
+		if genresMap != nil {
+			if mapped, ok := genresMap[originalGenre]; ok {
+				genre = mapped
+			} else {
+				// Поиск с учетом тримминга пробелов
+				trimmedOriginal := strings.TrimSpace(originalGenre)
+				for original, mapped := range genresMap {
+					if strings.TrimSpace(original) == trimmedOriginal {
+						genre = mapped
+						break
+					}
+				}
+			}
+		}
+
+		tl.Genre = genre
+		tl.Author = author
+		tl.Title = title
+	} else {
+		// Если не соответствует шаблону - используем имя файла как название
+		tl.Title = baseName
+	}
+
+	// Если жанр не указан - используем имя папки
+	if tl.Genre == "" {
+		tl.Genre = folder
+	}
+
+	return tl
 }

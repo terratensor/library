@@ -12,6 +12,8 @@ type Config struct {
 	Concurrency    int       `yaml:"concurrency" env-default:"12"`
 	MetadataOnly   bool      `yaml:"metadata_only"` // только метаданные, будет обрабатывать только имена файлов и создавать записи в таблицах авторов, категорий и заголовков без полного парсинга содержимого.
 	Volume         string    `yaml:"volume" env-default:"./volume"`
+	GenresMapPath  string    `yaml:"genres_map_path" env-default:"./config/genres_map.csv"`
+	FoldersMapPath string    `yaml:"folders_map_path" env-default:"./config/folders_map.yaml"`
 	Manticore      Manticore `yaml:"manticore"`
 	BatchSize      int       `yaml:"batch_size" env-default:"3000"`
 	MinParSize     int       `yaml:"min_par_size" env-default:"300"`

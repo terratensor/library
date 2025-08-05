@@ -123,7 +123,7 @@ func createReverseProxy(cfg Config) *httputil.ReverseProxy {
 func createHandler(proxy *httputil.ReverseProxy, apiKey string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Логирование входящего запроса
-		log.Printf("Incoming request: %s %s", r.Method, r.URL.Path)
+		log.Printf("Incoming request: %s %s", r.Method, r.URL.RawPath)
 
 		// Устанавливаем заголовки ответа
 		w.Header().Set("Content-Type", "application/json")

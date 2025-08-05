@@ -3,6 +3,7 @@ package parser
 import (
 	"archive/tar"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
@@ -21,6 +22,7 @@ import (
 	"github.com/terratensor/library/parser/internal/metadata"
 	"github.com/terratensor/library/parser/internal/parser/brokendocx"
 	"github.com/terratensor/library/parser/internal/parser/docc"
+	"gopkg.in/yaml.v3"
 )
 
 type Parser struct {
@@ -31,7 +33,9 @@ type Parser struct {
 	authors    map[string]entry.Author
 	categories map[string]entry.Category
 	titles     map[string]entry.Title
-	mu         sync.Mutex // To protect concurrent access to maps
+	mu         sync.Mutex        // To protect concurrent access to maps
+	genresMap  map[string]string // Маппинг жанров
+	foldersMap map[string]string // Маппинг папок
 }
 
 // Глобальная переменная для хранения скомпилированного регулярного выражения
@@ -55,6 +59,53 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		reBase64 = regexp.MustCompile(`(?:[A-Za-z0-9+/]{40,}={0,2}|iVBORw0KGgo[^"]+)`)
 	}
 
+	// Загружаем маппинг жанров из CSV
+	genresMap := make(map[string]string)
+	if cfg.GenresMapPath != "" {
+		file, err := os.Open(cfg.GenresMapPath)
+		if err != nil {
+			log.Printf("Warning: could not open genres map file: %v", err)
+		} else {
+			defer file.Close()
+
+			reader := csv.NewReader(file)
+			reader.Comma = ','
+			reader.FieldsPerRecord = 2 // Ожидаем ровно 2 колонки
+			reader.LazyQuotes = true   // Для обработки строк в кавычках
+
+			records, err := reader.ReadAll()
+			if err != nil {
+				log.Printf("Warning: could not read genres map file: %v", err)
+			} else {
+				for _, record := range records {
+					if len(record) == 2 {
+						original := strings.TrimSpace(record[0])
+						mapped := strings.TrimSpace(record[1])
+						genresMap[original] = mapped
+					}
+				}
+			}
+		}
+	}
+
+	// Загружаем маппинг папок
+	foldersMap := make(map[string]string)
+	if cfg.FoldersMapPath != "" {
+		data, err := os.ReadFile(cfg.FoldersMapPath)
+		if err != nil {
+			log.Printf("Warning: could not open folders map file: %v", err)
+		} else {
+			var config struct {
+				Mappings map[string]string `yaml:"mappings"`
+			}
+			if err := yaml.Unmarshal(data, &config); err != nil {
+				log.Printf("Warning: could not parse folders map file: %v", err)
+			} else {
+				foldersMap = config.Mappings
+			}
+		}
+	}
+
 	return &Parser{
 		cfg:        cfg,
 		storage:    storage,
@@ -62,6 +113,8 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		authors:    make(map[string]entry.Author),
 		categories: make(map[string]entry.Category),
 		titles:     make(map[string]entry.Title),
+		genresMap:  genresMap,
+		foldersMap: foldersMap,
 	}
 }
 
@@ -162,11 +215,11 @@ func (p *Parser) ParseWithOrigName(ctx context.Context, file os.DirEntry, path, 
 	fp := filepath.Clean(filepath.Join(path, file.Name()))
 	filename := origName // Используем оригинальное имя
 	extension := strings.ToLower(filepath.Ext(filename))
-	bookName := filename[:len(filename)-len(extension)]
+	// bookName := filename[:len(filename)-len(extension)]
 
-	titleList := book.NewTitleList(bookName)
-	titleList.SourceUUID = uuid.New()
-	titleList.Source = filename
+	// titleList := book.NewTitleList(bookName, p.genresMap)
+	// titleList.SourceUUID = uuid.New()
+	// titleList.Source = filename
 
 	switch extension {
 	case ".docx":
@@ -263,33 +316,11 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 	fp := filepath.Clean(filepath.Join(path, file.Name()))
 	filename := file.Name()
 	extension := strings.ToLower(filepath.Ext(filename))
-	bookName := filename[:len(filename)-len(extension)]
+	// bookName := filename[:len(filename)-len(extension)]
 
-	titleList := book.NewTitleList(bookName)
-	titleList.SourceUUID = uuid.New()
-	titleList.Source = filename
-
-	// Обрабатываем модели с блокировкой
-	p.mu.Lock()
-	if titleList.Author != "" {
-		if _, exists := p.authors[titleList.Author]; !exists {
-			author := entry.NewAuthorFromTitleList(titleList)
-			p.authors[titleList.Author] = *author
-		}
-	}
-	if titleList.Genre != "" {
-		if _, exists := p.categories[titleList.Genre]; !exists {
-			category := entry.NewCategoryFromTitleList(titleList)
-			p.categories[titleList.Genre] = *category
-		}
-	}
-	if titleList.Title != "" {
-		if _, exists := p.titles[titleList.Title]; !exists {
-			title := entry.NewTitleFromTitleList(titleList)
-			p.titles[titleList.Title] = *title
-		}
-	}
-	p.mu.Unlock()
+	// titleList := book.NewTitleList(bookName, p.genresMap)
+	// titleList.SourceUUID = uuid.New()
+	// titleList.Source = filename
 
 	switch extension {
 	case ".docx":
@@ -304,7 +335,8 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 }
 
 func (p *Parser) parseDocx(ctx context.Context, filePath, filename string) error {
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	// Передаем полный путь к файлу
+	titleList := book.NewTitleList(filePath, p.genresMap, p.foldersMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -346,7 +378,7 @@ func (p *Parser) parsePDF(ctx context.Context, filePath, filename string) error 
 		return fmt.Errorf("PDF processing is disabled in config")
 	}
 
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	titleList := book.NewTitleList(filePath, p.genresMap, p.foldersMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -359,7 +391,7 @@ func (p *Parser) parseEPUB(ctx context.Context, filePath, filename string) error
 		return fmt.Errorf("EPUB processing is disabled in config")
 	}
 
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	titleList := book.NewTitleList(filePath, p.genresMap, p.foldersMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 

@@ -1,20 +1,20 @@
 services:
-  app:
-    container_name: library-app
-    image: yiisoftware/yii2-php:8.1-apache
-    restart: always
-    environment:
-      APP_ENV: dev
-      FRONTEND_URL: 'http://localhost'
-      GH_REPO_URL: 'https://github.com/terratensor/kob-library-app'
-      MANTICORE_DB_NAME_COMMON: 'library2025'
-    volumes:
-      - ~/.composer-docker/cache:/root/.composer/cache:delegated
-      - ./webui/app:/app:delegated
-    ports:
-      - '80:80'
-    networks:
-      - library-net
+  # app:
+  #   container_name: library-app
+  #   image: yiisoftware/yii2-php:8.1-apache
+  #   restart: always
+  #   environment:
+  #     APP_ENV: dev
+  #     FRONTEND_URL: 'http://localhost'
+  #     GH_REPO_URL: 'https://github.com/terratensor/kob-library-app'
+  #     MANTICORE_DB_NAME_COMMON: 'library2025'
+  #   volumes:
+  #     - ~/.composer-docker/cache:/root/.composer/cache:delegated
+  #     - ./webui/app:/app:delegated
+  #   ports:
+  #     - '80:80'
+  #   networks:
+  #     - library-net
 
   manticore:
     container_name: library-manticore
@@ -32,6 +32,10 @@ services:
       memlock:
         soft: -1
         hard: -1
+    deploy:
+      resources:
+        limits:
+          memory: 16G
     environment:
       - EXTRA=1
     volumes:
