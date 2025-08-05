@@ -22,6 +22,7 @@ import (
 	"github.com/terratensor/library/parser/internal/metadata"
 	"github.com/terratensor/library/parser/internal/parser/brokendocx"
 	"github.com/terratensor/library/parser/internal/parser/docc"
+	"gopkg.in/yaml.v3"
 )
 
 type Parser struct {
@@ -34,6 +35,7 @@ type Parser struct {
 	titles     map[string]entry.Title
 	mu         sync.Mutex        // To protect concurrent access to maps
 	genresMap  map[string]string // Маппинг жанров
+	foldersMap map[string]string // Маппинг папок
 }
 
 // Глобальная переменная для хранения скомпилированного регулярного выражения
@@ -86,6 +88,24 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		}
 	}
 
+	// Загружаем маппинг папок
+	foldersMap := make(map[string]string)
+	if cfg.FoldersMapPath != "" {
+		data, err := os.ReadFile(cfg.FoldersMapPath)
+		if err != nil {
+			log.Printf("Warning: could not open folders map file: %v", err)
+		} else {
+			var config struct {
+				Mappings map[string]string `yaml:"mappings"`
+			}
+			if err := yaml.Unmarshal(data, &config); err != nil {
+				log.Printf("Warning: could not parse folders map file: %v", err)
+			} else {
+				foldersMap = config.Mappings
+			}
+		}
+	}
+
 	return &Parser{
 		cfg:        cfg,
 		storage:    storage,
@@ -94,6 +114,7 @@ func NewParser(cfg *config.Config, storage *entry.Entries) *Parser {
 		categories: make(map[string]entry.Category),
 		titles:     make(map[string]entry.Title),
 		genresMap:  genresMap,
+		foldersMap: foldersMap,
 	}
 }
 
@@ -315,7 +336,7 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 
 func (p *Parser) parseDocx(ctx context.Context, filePath, filename string) error {
 	// Передаем полный путь к файлу
-	titleList := book.NewTitleList(filePath, p.genresMap)
+	titleList := book.NewTitleList(filePath, p.genresMap, p.foldersMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -357,7 +378,7 @@ func (p *Parser) parsePDF(ctx context.Context, filePath, filename string) error 
 		return fmt.Errorf("PDF processing is disabled in config")
 	}
 
-	titleList := book.NewTitleList(filePath, p.genresMap)
+	titleList := book.NewTitleList(filePath, p.genresMap, p.foldersMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -370,7 +391,7 @@ func (p *Parser) parseEPUB(ctx context.Context, filePath, filename string) error
 		return fmt.Errorf("EPUB processing is disabled in config")
 	}
 
-	titleList := book.NewTitleList(filePath, p.genresMap)
+	titleList := book.NewTitleList(filePath, p.genresMap, p.foldersMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 

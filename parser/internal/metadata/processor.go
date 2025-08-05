@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/terratensor/library/parser/internal/library/book"
 	"github.com/terratensor/library/parser/internal/library/entry"
+	"gopkg.in/yaml.v3"
 )
 
 type Processor struct {
@@ -22,7 +23,8 @@ type Processor struct {
 	categories map[string]entry.Category
 	titles     map[string]entry.Title
 
-	genresMap map[string]string // Маппинг жанров
+	genresMap  map[string]string // Маппинг жанров
+	foldersMap map[string]string // Новое поле для маппинга папок
 
 	dupMutex    sync.Mutex
 	entryMutex  sync.Mutex
@@ -33,9 +35,10 @@ type Processor struct {
 }
 
 type Config struct {
-	GenresMapPath string
-	LogFilePath   string
-	Logger        *slog.Logger
+	GenresMapPath  string
+	FoldersMapPath string
+	LogFilePath    string
+	Logger         *slog.Logger
 }
 
 func NewProcessor(cfg Config) (*Processor, error) {
@@ -55,8 +58,8 @@ func NewProcessor(cfg Config) (*Processor, error) {
 
 			reader := csv.NewReader(file)
 			reader.Comma = ','
-			reader.FieldsPerRecord = 2 // Ожидаем ровно 2 колонки
-			reader.LazyQuotes = true   // Для обработки строк в кавычках
+			reader.FieldsPerRecord = 2
+			reader.LazyQuotes = true
 
 			records, err := reader.ReadAll()
 			if err != nil {
@@ -73,6 +76,24 @@ func NewProcessor(cfg Config) (*Processor, error) {
 		}
 	}
 
+	// Загружаем маппинг папок из YAML
+	foldersMap := make(map[string]string)
+	if cfg.FoldersMapPath != "" {
+		data, err := os.ReadFile(cfg.FoldersMapPath)
+		if err != nil {
+			log.Printf("Warning: could not open folders map file: %v", err)
+		} else {
+			var config struct {
+				Mappings map[string]string `yaml:"mappings"`
+			}
+			if err := yaml.Unmarshal(data, &config); err != nil {
+				log.Printf("Warning: could not parse folders map file: %v", err)
+			} else {
+				foldersMap = config.Mappings
+			}
+		}
+	}
+
 	return &Processor{
 		duplicates: make(map[string][]string),
 		entries:    make(map[string]book.TitleList),
@@ -80,6 +101,7 @@ func NewProcessor(cfg Config) (*Processor, error) {
 		categories: make(map[string]entry.Category),
 		titles:     make(map[string]entry.Title),
 		genresMap:  genresMap,
+		foldersMap: foldersMap, // Добавляем маппинг папок
 		errorLog:   f,
 		logger:     cfg.Logger,
 	}, nil
@@ -107,8 +129,8 @@ func (mp *Processor) ProcessFile(path string) error {
 		return nil
 	}
 
-	// Используем новый конструктор, передаем полный путь
-	titleList := book.NewTitleList(path, mp.genresMap)
+	// Используем новый конструктор с маппингом папок
+	titleList := book.NewTitleList(path, mp.genresMap, mp.foldersMap)
 
 	// Проверка на пустой заголовок
 	if titleList.Title == "" {
@@ -120,7 +142,7 @@ func (mp *Processor) ProcessFile(path string) error {
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
-	// Обработка дубликатов
+	// Остальной код без изменений
 	mp.processDuplicates(titleList, path)
 
 	// Обработка моделей (авторы, категории, заголовки)

@@ -3,6 +3,7 @@ concurrency: 20
 metadata_only: false
 volume: "../common/"
 genres_map_path: "./config/genres_map.csv"
+folders_map_path: "./config/folders_map.yaml"
 manticore:
   engine: "rowwise" # rowwise, columnar
   host: "localhost"

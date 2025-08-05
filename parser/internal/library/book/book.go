@@ -18,11 +18,16 @@ type TitleList struct {
 }
 
 // NewTitleList создает новый TitleList из полного пути файла
-func NewTitleList(filePath string, genresMap map[string]string) *TitleList {
+func NewTitleList(filePath string, genresMap, foldersMap map[string]string) *TitleList {
 	// Извлекаем имя файла и папки
 	filename := filepath.Base(filePath)
 	baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
 	folder := filepath.Base(filepath.Dir(filePath))
+
+	// Применяем маппинг папок
+	if mapped, ok := foldersMap[folder]; ok {
+		folder = mapped
+	}
 
 	tl := &TitleList{
 		Folder: folder, // Сохраняем имя папки
