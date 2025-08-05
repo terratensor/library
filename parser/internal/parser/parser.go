@@ -194,11 +194,11 @@ func (p *Parser) ParseWithOrigName(ctx context.Context, file os.DirEntry, path, 
 	fp := filepath.Clean(filepath.Join(path, file.Name()))
 	filename := origName // Используем оригинальное имя
 	extension := strings.ToLower(filepath.Ext(filename))
-	bookName := filename[:len(filename)-len(extension)]
+	// bookName := filename[:len(filename)-len(extension)]
 
-	titleList := book.NewTitleList(bookName, p.genresMap)
-	titleList.SourceUUID = uuid.New()
-	titleList.Source = filename
+	// titleList := book.NewTitleList(bookName, p.genresMap)
+	// titleList.SourceUUID = uuid.New()
+	// titleList.Source = filename
 
 	switch extension {
 	case ".docx":
@@ -295,11 +295,11 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 	fp := filepath.Clean(filepath.Join(path, file.Name()))
 	filename := file.Name()
 	extension := strings.ToLower(filepath.Ext(filename))
-	bookName := filename[:len(filename)-len(extension)]
+	// bookName := filename[:len(filename)-len(extension)]
 
-	titleList := book.NewTitleList(bookName, p.genresMap)
-	titleList.SourceUUID = uuid.New()
-	titleList.Source = filename
+	// titleList := book.NewTitleList(bookName, p.genresMap)
+	// titleList.SourceUUID = uuid.New()
+	// titleList.Source = filename
 
 	switch extension {
 	case ".docx":
@@ -314,7 +314,8 @@ func (p *Parser) Parse(ctx context.Context, file os.DirEntry, path string) error
 }
 
 func (p *Parser) parseDocx(ctx context.Context, filePath, filename string) error {
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)), p.genresMap)
+	// Передаем полный путь к файлу
+	titleList := book.NewTitleList(filePath, p.genresMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -356,7 +357,7 @@ func (p *Parser) parsePDF(ctx context.Context, filePath, filename string) error 
 		return fmt.Errorf("PDF processing is disabled in config")
 	}
 
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)), p.genresMap)
+	titleList := book.NewTitleList(filePath, p.genresMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 
@@ -369,7 +370,7 @@ func (p *Parser) parseEPUB(ctx context.Context, filePath, filename string) error
 		return fmt.Errorf("EPUB processing is disabled in config")
 	}
 
-	titleList := book.NewTitleList(strings.TrimSuffix(filename, filepath.Ext(filename)), p.genresMap)
+	titleList := book.NewTitleList(filePath, p.genresMap)
 	titleList.SourceUUID = uuid.New()
 	titleList.Source = filename
 

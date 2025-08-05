@@ -107,8 +107,10 @@ func (mp *Processor) ProcessFile(path string) error {
 		return nil
 	}
 
-	bookName := filename[:len(filename)-len(ext)]
-	titleList := book.NewTitleList(bookName, mp.genresMap)
+	// Используем новый конструктор, передаем полный путь
+	titleList := book.NewTitleList(path, mp.genresMap)
+
+	// Проверка на пустой заголовок
 	if titleList.Title == "" {
 		msg := fmt.Sprintf("invalid filename format: %s", filename)
 		mp.logError(msg)

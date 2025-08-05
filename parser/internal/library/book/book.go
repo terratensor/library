@@ -1,6 +1,7 @@
 package book
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -13,25 +14,36 @@ type TitleList struct {
 	Genre      string
 	Author     string
 	Title      string
+	Folder     string // Добавлено новое поле
 }
 
-// NewTitleList creates a new TitleList from a string
-func NewTitleList(str string, genresMap map[string]string) *TitleList {
+// NewTitleList создает новый TitleList из полного пути файла
+func NewTitleList(filePath string, genresMap map[string]string) *TitleList {
+	// Извлекаем имя файла и папки
+	filename := filepath.Base(filePath)
+	baseName := strings.TrimSuffix(filename, filepath.Ext(filename))
+	folder := filepath.Base(filepath.Dir(filePath))
+
+	tl := &TitleList{
+		Folder: folder, // Сохраняем имя папки
+	}
+
 	const pattern = `([^_]+)_([^—]+) — (.+)`
-	matches := regexp.MustCompile(pattern).FindStringSubmatch(str)
+	matches := regexp.MustCompile(pattern).FindStringSubmatch(baseName)
+
 	if len(matches) > 3 {
 		originalGenre := matches[1]
-		genre := originalGenre // По умолчанию оставляем оригинальный жанр
+		genre := originalGenre
 
 		// Применяем маппинг жанров
 		if genresMap != nil {
-			// Ищем полное совпадение
 			if mapped, ok := genresMap[originalGenre]; ok {
 				genre = mapped
 			} else {
-				// Если полного совпадения нет, ищем с учетом тримминга пробелов
+				// Ищем с триммингом пробелов
+				trimmedOriginal := strings.TrimSpace(originalGenre)
 				for original, mapped := range genresMap {
-					if strings.TrimSpace(originalGenre) == strings.TrimSpace(original) {
+					if strings.TrimSpace(original) == trimmedOriginal {
 						genre = mapped
 						break
 					}
@@ -39,11 +51,17 @@ func NewTitleList(str string, genresMap map[string]string) *TitleList {
 			}
 		}
 
-		return &TitleList{
-			Genre:  genre,
-			Author: matches[2],
-			Title:  matches[3],
-		}
+		tl.Genre = genre
+		tl.Author = matches[2]
+		tl.Title = matches[3]
+	} else {
+		tl.Title = baseName
 	}
-	return &TitleList{Title: str}
+
+	// Если автор не установлен - используем имя папки
+	if tl.Author == "" {
+		tl.Author = folder
+	}
+
+	return tl
 }
