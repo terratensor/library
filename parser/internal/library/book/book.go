@@ -30,22 +30,28 @@ func NewTitleList(filePath string, genresMap, foldersMap map[string]string) *Tit
 	}
 
 	tl := &TitleList{
-		Folder: folder, // Сохраняем имя папки
+		Folder: folder,
 	}
 
-	const pattern = `([^_]+)_([^—]+) — (.+)`
+	// Улучшенное регулярное выражение:
+	// 1. Жанр: все до первого "_"
+	// 2. Автор: либо текст между "_" и " — ", либо пусто
+	// 3. Название: все после " — "
+	const pattern = `^([^_]+)_([^—]*) — (.+)$`
 	matches := regexp.MustCompile(pattern).FindStringSubmatch(baseName)
 
-	if len(matches) > 3 {
-		originalGenre := matches[1]
-		genre := originalGenre
+	if len(matches) == 4 {
+		originalGenre := strings.TrimSpace(matches[1])
+		author := strings.TrimSpace(matches[2])
+		title := strings.TrimSpace(matches[3])
 
 		// Применяем маппинг жанров
+		genre := originalGenre
 		if genresMap != nil {
 			if mapped, ok := genresMap[originalGenre]; ok {
 				genre = mapped
 			} else {
-				// Ищем с триммингом пробелов
+				// Поиск с учетом тримминга пробелов
 				trimmedOriginal := strings.TrimSpace(originalGenre)
 				for original, mapped := range genresMap {
 					if strings.TrimSpace(original) == trimmedOriginal {
@@ -57,15 +63,16 @@ func NewTitleList(filePath string, genresMap, foldersMap map[string]string) *Tit
 		}
 
 		tl.Genre = genre
-		tl.Author = matches[2]
-		tl.Title = matches[3]
+		tl.Author = author
+		tl.Title = title
 	} else {
+		// Если не соответствует шаблону - используем имя файла как название
 		tl.Title = baseName
 	}
 
-	// Если автор не установлен - используем имя папки
-	if tl.Author == "" {
-		tl.Author = folder
+	// Если жанр не указан - используем имя папки
+	if tl.Genre == "" {
+		tl.Genre = folder
 	}
 
 	return tl
