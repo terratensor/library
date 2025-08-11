@@ -1,27 +1,10 @@
 services:
-  # app:
-  #   container_name: library-app
-  #   image: yiisoftware/yii2-php:8.1-apache
-  #   restart: always
-  #   environment:
-  #     APP_ENV: dev
-  #     FRONTEND_URL: 'http://localhost'
-  #     GH_REPO_URL: 'https://github.com/terratensor/kob-library-app'
-  #     MANTICORE_DB_NAME_COMMON: 'library2025'
-  #   volumes:
-  #     - ~/.composer-docker/cache:/root/.composer/cache:delegated
-  #     - ./webui/app:/app:delegated
-  #   ports:
-  #     - '80:80'
-  #   networks:
-  #     - library-net
-
   manticore:
     container_name: library-manticore
-    image: manticoresearch/manticore
+    image: manticoresearch/manticore:13.6.7
     restart: always
-    ports:
-      - "127.0.0.1:9308:9308" # Локально для отладки (необязательно)
+    # ports:
+    #   - "9308:9308" # Локально для отладки (необязательно)
     networks:
       - library-net
     ulimits:
@@ -35,19 +18,43 @@ services:
     deploy:
       resources:
         limits:
-          memory: 16G
+          memory: 64G
     environment:
       - EXTRA=1
     volumes:
       - ./manticore/data:/var/lib/manticore
       - ./manticore/logs:/var/log/manticore
-      # - manticore:/var/lib/manticore
-      # - manticore:/var/log/manticore    
+      # - ./manticore/conf/manticore.conf:/etc/manticoresearch/manticore.conf
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:9308"]
+    #   interval: 3s
+    #   timeout: 5s
+    #   retries: 10
+    #   start_period: 10s
+
+  vectorizer:
+    container_name: library-vectorizer
+    build:
+      context: /mnt/work/audetv/go/src/github.com/terratensor/manticore-vectorizer/
+      dockerfile: Dockerfile
+    restart: always
+    networks:
+      - library-net
+    environment:
+      - CONFIG_FILE=config.yaml
+    volumes:
+      - /mnt/work/audetv/go/src/github.com/terratensor/manticore-vectorizer/config:/config
+      - /mnt/work/audetv/go/src/github.com/terratensor/manticore-vectorizer/vectors:/vectors
+    deploy:
+      resources:
+        limits:
+          memory: 16G
 
   manticore-proxy:
     container_name: library-manticore-proxy
+    # image: library-manticore-proxy
     build: ./proxy
-    restart: always
+    restart: always    
     ports:
       - "1122:9308" # Наружу 1122 → внутри 9308
     networks:
@@ -55,10 +62,12 @@ services:
     environment:
       - MANTICORE_API_KEY_FILE=/run/secrets/manticore_api_key
       - MANTICORE_HOST=manticore:9308 # Адрес Manticore в Docker-сети
+      - VECTORIZER_HOST=http://vectorizer:8081
     secrets:
       - manticore_api_key
     depends_on:
       - manticore
+      - vectorizer
 
 # volumes:
 #   manticore:
@@ -71,3 +80,4 @@ secrets:
 networks:
   library-net:
     name: library-net
+    driver: bridge

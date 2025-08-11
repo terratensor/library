@@ -1,11 +1,11 @@
 env: "local" # Окружение - local, dev или prod
 concurrency: 20
-metadata_only: false
+metadata_only: true
 volume: "../common/"
 genres_map_path: "./config/genres_map.csv"
 folders_map_path: "./config/folders_map.yaml"
 manticore:
-  engine: "rowwise" # rowwise, columnar
+  engine: "columnar" # rowwise, columnar
   host: "localhost"
   index: "library2025"
   port: 9308

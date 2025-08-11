@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -25,10 +28,26 @@ type ManticoreErrorResponse struct {
 	Error string `json:"error"`
 }
 
+// VectorizationRequest структура для запроса векторизации
+type VectorizationRequest struct {
+	Text string `json:"text"`
+}
+
+// VectorizationResponse структура для ответа векторизации
+type VectorizationResponse struct {
+	OriginalText string    `json:"original_text"`
+	CleanedText  string    `json:"cleaned_text"`
+	Vector       []float32 `json:"vector"`
+	Method       string    `json:"method"`
+	Dimensions   int       `json:"dimensions"`
+	Error        string    `json:"error,omitempty"`
+}
+
 // Config содержит конфигурацию прокси
 type Config struct {
 	APIKey          string
 	ManticoreHost   string
+	VectorizerHost  string
 	ProxyListenPort string
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
@@ -42,21 +61,32 @@ func main() {
 	// Инициализация конфигурации
 	cfg := loadConfig()
 
-	// Настройка прокси с таймаутами
-	proxy := createReverseProxy(cfg)
+	// Настройка прокси для Manticore
+	manticoreProxy := createReverseProxy("http://"+cfg.ManticoreHost, cfg)
+
+	// Настройка прокси для Vectorizer
+	vectorizerProxy := createReverseProxy(cfg.VectorizerHost, cfg)
 
 	// Настройка HTTP сервера
 	server := &http.Server{
 		Addr:           cfg.ProxyListenPort,
-		Handler:        createHandler(proxy, cfg.APIKey),
+		Handler:        createHandler(manticoreProxy, vectorizerProxy, cfg.APIKey),
 		ReadTimeout:    cfg.ReadTimeout,
 		WriteTimeout:   cfg.WriteTimeout,
 		IdleTimeout:    cfg.IdleTimeout,
 		MaxHeaderBytes: cfg.MaxHeaderBytes,
 	}
 
+	// Ждем готовности Manticore
+	manticoreAddr := strings.TrimPrefix(cfg.ManticoreHost, "http://")
+	log.Printf("Waiting for Manticore at %s...", manticoreAddr)
+	if err := waitForService(manticoreAddr, 30*time.Second); err != nil {
+		log.Fatalf("Manticore is not available: %v", err)
+	}
+
 	// Запуск сервера
-	log.Printf("Starting proxy (Manticore: %s, Listen: %s)", cfg.ManticoreHost, cfg.ProxyListenPort)
+	log.Printf("Starting proxy (Manticore: %s, Vectorizer: %s, Listen: %s)",
+		cfg.ManticoreHost, cfg.VectorizerHost, cfg.ProxyListenPort)
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
@@ -75,9 +105,16 @@ func loadConfig() Config {
 		log.Fatal("MANTICORE_HOST is not set")
 	}
 
+	vectorizerHost := os.Getenv("VECTORIZER_HOST")
+	if vectorizerHost == "" {
+		vectorizerHost = "http://vectorizer:8081" // дефолтное значение
+		log.Printf("Using default vectorizer host: %s", vectorizerHost)
+	}
+
 	return Config{
 		APIKey:          string(apiKeyBytes),
 		ManticoreHost:   manticoreHost,
+		VectorizerHost:  vectorizerHost,
 		ProxyListenPort: getEnv("PROXY_LISTEN_PORT", ":9308"),
 		ReadTimeout:     getEnvDuration("READ_TIMEOUT", 10*time.Second),
 		WriteTimeout:    getEnvDuration("WRITE_TIMEOUT", 10*time.Second),
@@ -88,10 +125,10 @@ func loadConfig() Config {
 	}
 }
 
-func createReverseProxy(cfg Config) *httputil.ReverseProxy {
-	target, err := url.Parse("http://" + cfg.ManticoreHost)
+func createReverseProxy(targetURL string, cfg Config) *httputil.ReverseProxy {
+	target, err := url.Parse(targetURL)
 	if err != nil {
-		log.Fatal("Failed to parse Manticore URL:", err)
+		log.Fatalf("Failed to parse target URL %s: %v", targetURL, err)
 	}
 
 	transport := &http.Transport{
@@ -114,38 +151,86 @@ func createReverseProxy(cfg Config) *httputil.ReverseProxy {
 		},
 		Transport: transport,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			log.Printf("Proxy error: %v", err)
+			log.Printf("Proxy error to %s: %v", targetURL, err)
 			sendJSONError(w, "Bad Gateway", "Service unavailable", http.StatusBadGateway)
 		},
 	}
 }
 
-func createHandler(proxy *httputil.ReverseProxy, apiKey string) http.Handler {
+func createHandler(manticoreProxy, vectorizerProxy *httputil.ReverseProxy, apiKey string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Логирование входящего запроса
-		log.Printf("Incoming request: %s %s", r.Method, r.URL.RawPath)
-
 		// Устанавливаем заголовки ответа
 		w.Header().Set("Content-Type", "application/json")
 
 		// Проверка API ключа
 		if r.Header.Get("X-API-Key") != apiKey {
 			w.WriteHeader(http.StatusUnauthorized)
-
-			// Формируем ответ в формате, который ожидает Manticoresearch клиент
-			response := ManticoreErrorResponse{
-				Error: "Invalid API key",
+			response := map[string]interface{}{
+				"error": "Invalid API key",
 			}
-
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				log.Printf("Error encoding JSON response: %v", err)
 			}
 			return
 		}
 
-		// Проксирование запроса
-		proxy.ServeHTTP(w, r)
+		// Определяем тип запроса
+		if isVectorizationRequest(r) {
+			// Перехватываем запрос для векторизации
+			handleVectorizationRequest(w, r, vectorizerProxy)
+			return
+		}
+
+		// Остальные запросы перенаправляем в Manticore
+		manticoreProxy.ServeHTTP(w, r)
 	})
+}
+
+func isVectorizationRequest(r *http.Request) bool {
+	// Вариант 1: По специальному пути
+	if r.URL.Path == "/vectorize" {
+		return true
+	}
+
+	// Вариант 2: По заголовку
+	if r.Header.Get("X-Request-Type") == "vectorization" {
+		return true
+	}
+
+	// Вариант 3: По содержимому запроса
+	if r.Method == http.MethodPost {
+		// Проверяем первые 100 байт тела на наличие признаков векторизации
+		bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, 100))
+		if err == nil {
+			r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(bodyBytes), r.Body))
+			return bytes.Contains(bodyBytes, []byte(`"text"`))
+		}
+	}
+
+	return false
+}
+
+func handleVectorizationRequest(w http.ResponseWriter, r *http.Request, vectorizerProxy *httputil.ReverseProxy) {
+	// Читаем тело запроса
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendJSONError(w, "Bad Request", "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+	// Декодируем запрос
+	var req VectorizationRequest
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+		sendJSONError(w, "Bad Request", "Invalid request format", http.StatusBadRequest)
+		return
+	}
+
+	// Логируем запрос (без текста для безопасности)
+	log.Printf("Vectorization request (text length: %d)", len(req.Text))
+
+	// Перенаправляем запрос в vectorizer-server
+	vectorizerProxy.ServeHTTP(w, r)
 }
 
 func sendJSONError(w http.ResponseWriter, errorType, message string, statusCode int) {
@@ -184,4 +269,22 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// Функция ожидания доступности сервиса
+func waitForService(addr string, timeout time.Duration) error {
+	start := time.Now()
+	for {
+		conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+		if err == nil {
+			conn.Close()
+			return nil
+		}
+
+		if time.Since(start) > timeout {
+			return fmt.Errorf("timeout after %s", timeout)
+		}
+
+		time.Sleep(1 * time.Second)
+	}
 }
