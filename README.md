@@ -29,3 +29,9 @@ docker exec -it 41ff96f4a1a6 mysqldump library > library_backup.sql
 docker exec -it 41ff96f4a1a6 mysql < library_backup.sql
 ```
 Эта команда позволяет восстановить все данные из файла library_backup.sql.
+
+Пересборка и запуск прокси
+```
+docker compose build manticore-proxy
+docker compose up -d
+```

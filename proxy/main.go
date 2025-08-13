@@ -30,7 +30,8 @@ type ManticoreErrorResponse struct {
 
 // VectorizationRequest структура для запроса векторизации
 type VectorizationRequest struct {
-	Text string `json:"text"`
+	Text  string `json:"text"`
+	Model string `json:"model"`
 }
 
 // VectorizationResponse структура для ответа векторизации
@@ -45,16 +46,17 @@ type VectorizationResponse struct {
 
 // Config содержит конфигурацию прокси
 type Config struct {
-	APIKey          string
-	ManticoreHost   string
-	VectorizerHost  string
-	ProxyListenPort string
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	DialTimeout     time.Duration
-	IdleTimeout     time.Duration
-	RequestTimeout  time.Duration
-	MaxHeaderBytes  int
+	APIKey           string
+	ManticoreHost    string
+	VectorizerHost   string
+	VectorizerPyHost string
+	ProxyListenPort  string
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	DialTimeout      time.Duration
+	IdleTimeout      time.Duration
+	RequestTimeout   time.Duration
+	MaxHeaderBytes   int
 }
 
 func main() {
@@ -66,11 +68,13 @@ func main() {
 
 	// Настройка прокси для Vectorizer
 	vectorizerProxy := createReverseProxy(cfg.VectorizerHost, cfg)
+	// Настройка прокси для Vectorizer_py
+	vectorizerPyProxy := createReverseProxy(cfg.VectorizerPyHost, cfg)
 
 	// Настройка HTTP сервера
 	server := &http.Server{
 		Addr:           cfg.ProxyListenPort,
-		Handler:        createHandler(manticoreProxy, vectorizerProxy, cfg.APIKey),
+		Handler:        createHandler(manticoreProxy, vectorizerProxy, vectorizerPyProxy, cfg.APIKey),
 		ReadTimeout:    cfg.ReadTimeout,
 		WriteTimeout:   cfg.WriteTimeout,
 		IdleTimeout:    cfg.IdleTimeout,
@@ -85,8 +89,8 @@ func main() {
 	}
 
 	// Запуск сервера
-	log.Printf("Starting proxy (Manticore: %s, Vectorizer: %s, Listen: %s)",
-		cfg.ManticoreHost, cfg.VectorizerHost, cfg.ProxyListenPort)
+	log.Printf("Starting proxy (Manticore: %s, Vectorizer: %s, VectorizerPy: %s, Listen: %s)",
+		cfg.ManticoreHost, cfg.VectorizerHost, cfg.VectorizerPyHost, cfg.ProxyListenPort)
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
@@ -111,17 +115,24 @@ func loadConfig() Config {
 		log.Printf("Using default vectorizer host: %s", vectorizerHost)
 	}
 
+	vectorizerPyHost := os.Getenv("VECTORIZER_PY_HOST")
+	if vectorizerPyHost == "" {
+		vectorizerPyHost = "http://vectorizer-py:8082"
+		log.Printf("Using default python vectorizer host: %s", vectorizerPyHost)
+	}
+
 	return Config{
-		APIKey:          string(apiKeyBytes),
-		ManticoreHost:   manticoreHost,
-		VectorizerHost:  vectorizerHost,
-		ProxyListenPort: getEnv("PROXY_LISTEN_PORT", ":9308"),
-		ReadTimeout:     getEnvDuration("READ_TIMEOUT", 10*time.Second),
-		WriteTimeout:    getEnvDuration("WRITE_TIMEOUT", 10*time.Second),
-		DialTimeout:     getEnvDuration("DIAL_TIMEOUT", 5*time.Second),
-		IdleTimeout:     getEnvDuration("IDLE_TIMEOUT", 30*time.Second),
-		RequestTimeout:  getEnvDuration("REQUEST_TIMEOUT", 15*time.Second),
-		MaxHeaderBytes:  getEnvInt("MAX_HEADER_BYTES", 1<<20), // 1MB
+		APIKey:           string(apiKeyBytes),
+		ManticoreHost:    manticoreHost,
+		VectorizerHost:   vectorizerHost,
+		VectorizerPyHost: vectorizerPyHost,
+		ProxyListenPort:  getEnv("PROXY_LISTEN_PORT", ":9308"),
+		ReadTimeout:      getEnvDuration("READ_TIMEOUT", 10*time.Second),
+		WriteTimeout:     getEnvDuration("WRITE_TIMEOUT", 10*time.Second),
+		DialTimeout:      getEnvDuration("DIAL_TIMEOUT", 5*time.Second),
+		IdleTimeout:      getEnvDuration("IDLE_TIMEOUT", 30*time.Second),
+		RequestTimeout:   getEnvDuration("REQUEST_TIMEOUT", 15*time.Second),
+		MaxHeaderBytes:   getEnvInt("MAX_HEADER_BYTES", 1<<20), // 1MB
 	}
 }
 
@@ -157,7 +168,7 @@ func createReverseProxy(targetURL string, cfg Config) *httputil.ReverseProxy {
 	}
 }
 
-func createHandler(manticoreProxy, vectorizerProxy *httputil.ReverseProxy, apiKey string) http.Handler {
+func createHandler(manticoreProxy, vectorizerProxy, vectorizerPyProxy *httputil.ReverseProxy, apiKey string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Устанавливаем заголовки ответа
 		w.Header().Set("Content-Type", "application/json")
@@ -171,6 +182,11 @@ func createHandler(manticoreProxy, vectorizerProxy *httputil.ReverseProxy, apiKe
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				log.Printf("Error encoding JSON response: %v", err)
 			}
+			return
+		}
+
+		if r.URL.Path == "/vectorize-py" || strings.EqualFold(r.Header.Get("X-Vectorizer"), "py") {
+			handleVectorizationRequest(w, r, vectorizerPyProxy)
 			return
 		}
 
