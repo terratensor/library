@@ -31,7 +31,7 @@ type ManticoreErrorResponse struct {
 // VectorizationRequest структура для запроса векторизации
 type VectorizationRequest struct {
 	Text  string `json:"text"`
-	Model string `json:"model"`
+	Model string `json:"model"` // "glove" или "e5-small"
 }
 
 // VectorizationResponse структура для ответа векторизации
@@ -111,14 +111,14 @@ func loadConfig() Config {
 
 	vectorizerHost := os.Getenv("VECTORIZER_HOST")
 	if vectorizerHost == "" {
-		vectorizerHost = "http://vectorizer:8081" // дефолтное значение
+		vectorizerHost = "http://vectorizer:8081"
 		log.Printf("Using default vectorizer host: %s", vectorizerHost)
 	}
 
 	vectorizerPyHost := os.Getenv("VECTORIZER_PY_HOST")
 	if vectorizerPyHost == "" {
 		vectorizerPyHost = "http://vectorizer-py:8082"
-		log.Printf("Using default python vectorizer host: %s", vectorizerPyHost)
+		log.Printf("Using default vectorizer-py host: %s", vectorizerPyHost)
 	}
 
 	return Config{
@@ -176,24 +176,12 @@ func createHandler(manticoreProxy, vectorizerProxy, vectorizerPyProxy *httputil.
 		// Проверка API ключа
 		if r.Header.Get("X-API-Key") != apiKey {
 			w.WriteHeader(http.StatusUnauthorized)
-			response := map[string]interface{}{
-				"error": "Invalid API key",
-			}
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				log.Printf("Error encoding JSON response: %v", err)
-			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "Invalid API key"})
 			return
 		}
 
-		if r.URL.Path == "/vectorize-py" || strings.EqualFold(r.Header.Get("X-Vectorizer"), "py") {
-			handleVectorizationRequest(w, r, vectorizerPyProxy)
-			return
-		}
-
-		// Определяем тип запроса
-		if isVectorizationRequest(r) {
-			// Перехватываем запрос для векторизации
-			handleVectorizationRequest(w, r, vectorizerProxy)
+		if r.URL.Path == "/vectorize" {
+			handleVectorizationRequest(w, r, vectorizerProxy, vectorizerPyProxy)
 			return
 		}
 
@@ -202,32 +190,7 @@ func createHandler(manticoreProxy, vectorizerProxy, vectorizerPyProxy *httputil.
 	})
 }
 
-func isVectorizationRequest(r *http.Request) bool {
-	// Вариант 1: По специальному пути
-	if r.URL.Path == "/vectorize" {
-		return true
-	}
-
-	// Вариант 2: По заголовку
-	if r.Header.Get("X-Request-Type") == "vectorization" {
-		return true
-	}
-
-	// Вариант 3: По содержимому запроса
-	if r.Method == http.MethodPost {
-		// Проверяем первые 100 байт тела на наличие признаков векторизации
-		bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, 100))
-		if err == nil {
-			r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(bodyBytes), r.Body))
-			return bytes.Contains(bodyBytes, []byte(`"text"`))
-		}
-	}
-
-	return false
-}
-
-func handleVectorizationRequest(w http.ResponseWriter, r *http.Request, vectorizerProxy *httputil.ReverseProxy) {
-	// Читаем тело запроса
+func handleVectorizationRequest(w http.ResponseWriter, r *http.Request, vectorizerProxy, vectorizerPyProxy *httputil.ReverseProxy) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		sendJSONError(w, "Bad Request", "Failed to read request body", http.StatusBadRequest)
@@ -235,18 +198,27 @@ func handleVectorizationRequest(w http.ResponseWriter, r *http.Request, vectoriz
 	}
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
-	// Декодируем запрос
 	var req VectorizationRequest
 	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		sendJSONError(w, "Bad Request", "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
-	// Логируем запрос (без текста для безопасности)
-	log.Printf("Vectorization request (text length: %d)", len(req.Text))
+	if req.Model == "" {
+		req.Model = "glove" // дефолт
+	}
 
-	// Перенаправляем запрос в vectorizer-server
-	vectorizerProxy.ServeHTTP(w, r)
+	log.Printf("Vectorization request (model: %s, text length: %d)", req.Model, len(req.Text))
+
+	// Выбор прокси
+	switch strings.ToLower(req.Model) {
+	case "glove":
+		vectorizerProxy.ServeHTTP(w, r)
+	case "e5-small":
+		vectorizerPyProxy.ServeHTTP(w, r)
+	default:
+		sendJSONError(w, "Bad Request", fmt.Sprintf("Unknown model: %s", req.Model), http.StatusBadRequest)
+	}
 }
 
 func sendJSONError(w http.ResponseWriter, errorType, message string, statusCode int) {
@@ -254,9 +226,7 @@ func sendJSONError(w http.ResponseWriter, errorType, message string, statusCode 
 	response := ErrorResponse{}
 	response.Error.Type = errorType
 	response.Error.Message = message
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Error encoding JSON response: %v", err)
-	}
+	json.NewEncoder(w).Encode(response)
 }
 
 // Вспомогательные функции для работы с переменными окружения
@@ -296,11 +266,9 @@ func waitForService(addr string, timeout time.Duration) error {
 			conn.Close()
 			return nil
 		}
-
 		if time.Since(start) > timeout {
 			return fmt.Errorf("timeout after %s", timeout)
 		}
-
 		time.Sleep(1 * time.Second)
 	}
 }
