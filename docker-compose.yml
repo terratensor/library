@@ -17,10 +17,10 @@ services:
       memlock:
         soft: -1
         hard: -1
-    deploy:
-      resources:
-        limits:
-          memory: 64G
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 64G
     environment:
       - EXTRA=1
     volumes:
@@ -68,15 +68,15 @@ services:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu]
+              capabilities: [ gpu ]
     ports:
-      - "8082:8082"   # внешний порт 8082 → внутри 8081
+      - "8082:8082" # внешний порт 8082 → внутри 8081
 
   manticore-proxy:
     container_name: library-manticore-proxy
     # image: library-manticore-proxy
     build: ./proxy
-    restart: always    
+    restart: always
     ports:
       - "1122:9308" # Наружу 1122 → внутри 9308
     networks:

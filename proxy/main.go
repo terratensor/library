@@ -127,11 +127,11 @@ func loadConfig() Config {
 		VectorizerHost:   vectorizerHost,
 		VectorizerPyHost: vectorizerPyHost,
 		ProxyListenPort:  getEnv("PROXY_LISTEN_PORT", ":9308"),
-		ReadTimeout:      getEnvDuration("READ_TIMEOUT", 10*time.Second),
-		WriteTimeout:     getEnvDuration("WRITE_TIMEOUT", 10*time.Second),
-		DialTimeout:      getEnvDuration("DIAL_TIMEOUT", 5*time.Second),
-		IdleTimeout:      getEnvDuration("IDLE_TIMEOUT", 30*time.Second),
-		RequestTimeout:   getEnvDuration("REQUEST_TIMEOUT", 15*time.Second),
+		ReadTimeout:      getEnvDuration("READ_TIMEOUT", 60*time.Second),  // синхронизировано
+		WriteTimeout:     getEnvDuration("WRITE_TIMEOUT", 60*time.Second), // синхронизировано
+		DialTimeout:      getEnvDuration("DIAL_TIMEOUT", 5*time.Second),   // как network_timeout
+		IdleTimeout:      getEnvDuration("IDLE_TIMEOUT", 270*time.Second), // 4.5m < client_timeout=5m
+		RequestTimeout:   getEnvDuration("REQUEST_TIMEOUT", 60*time.Second),
 		MaxHeaderBytes:   getEnvInt("MAX_HEADER_BYTES", 1<<20), // 1MB
 	}
 }
@@ -154,18 +154,45 @@ func createReverseProxy(targetURL string, cfg Config) *httputil.ReverseProxy {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	return &httputil.ReverseProxy{
+	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			req.URL.Scheme = target.Scheme
 			req.URL.Host = target.Host
 			req.Host = target.Host
 		},
 		Transport: transport,
-		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			log.Printf("Proxy error to %s: %v", targetURL, err)
-			sendJSONError(w, "Bad Gateway", "Service unavailable", http.StatusBadGateway)
-		},
 	}
+
+	// ErrorHandler с retry
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		msg := err.Error()
+		if strings.Contains(msg, "broken pipe") ||
+			strings.Contains(msg, "connection reset by peer") ||
+			strings.Contains(msg, "i/o timeout") {
+
+			log.Printf("Retrying request to %s after error: %v", targetURL, err)
+
+			// Копируем тело, если оно было
+			var bodyBytes []byte
+			if r.Body != nil {
+				bodyBytes, _ = io.ReadAll(r.Body)
+				r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			}
+
+			retryReq := r.Clone(r.Context())
+			if bodyBytes != nil {
+				retryReq.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			}
+
+			proxy.ServeHTTP(w, retryReq)
+			return
+		}
+
+		log.Printf("Proxy error to %s: %v", targetURL, err)
+		sendJSONError(w, "Bad Gateway", "Service unavailable", http.StatusBadGateway)
+	}
+
+	return proxy
 }
 
 func createHandler(manticoreProxy, vectorizerProxy, vectorizerPyProxy *httputil.ReverseProxy, apiKey string) http.Handler {
