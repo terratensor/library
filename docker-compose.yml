@@ -1,27 +1,12 @@
 services:
-  # app:
-  #   container_name: library-app
-  #   image: yiisoftware/yii2-php:8.1-apache
-  #   restart: always
-  #   environment:
-  #     APP_ENV: dev
-  #     FRONTEND_URL: 'http://localhost'
-  #     GH_REPO_URL: 'https://github.com/terratensor/kob-library-app'
-  #     MANTICORE_DB_NAME_COMMON: 'library2025'
-  #   volumes:
-  #     - ~/.composer-docker/cache:/root/.composer/cache:delegated
-  #     - ./webui/app:/app:delegated
-  #   ports:
-  #     - '80:80'
-  #   networks:
-  #     - library-net
-
   manticore:
     container_name: library-manticore
-    image: manticoresearch/manticore
+    image: manticoresearch/manticore:13.6.7
     restart: always
     ports:
-      - "127.0.0.1:9308:9308" # Локально для отладки (необязательно)
+      - "9306:9306"
+      - "9308:9308" # Локально для отладки (необязательно)
+      - "9312:9312"
     networks:
       - library-net
     ulimits:
@@ -32,20 +17,64 @@ services:
       memlock:
         soft: -1
         hard: -1
-    deploy:
-      resources:
-        limits:
-          memory: 16G
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 64G
     environment:
       - EXTRA=1
     volumes:
       - ./manticore/data:/var/lib/manticore
       - ./manticore/logs:/var/log/manticore
-      # - manticore:/var/lib/manticore
-      # - manticore:/var/log/manticore    
+      - ./manticore/conf/manticore.conf:/etc/manticoresearch/manticore.conf
+
+  vectorizer:
+    container_name: library-vectorizer
+    build:
+      context: /mnt/work/audetv/go/src/github.com/terratensor/manticore-vectorizer/
+      dockerfile: Dockerfile
+    restart: always
+    networks:
+      - library-net
+    environment:
+      - CONFIG_FILE=config.yaml
+    volumes:
+      - /mnt/work/audetv/go/src/github.com/terratensor/manticore-vectorizer/config:/config
+      - /mnt/work/audetv/go/src/github.com/terratensor/manticore-vectorizer/vectors:/vectors
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+
+  vectorizer_py:
+    container_name: library-vectorizer-py
+    build:
+      context: /home/audetv/dev/vectorizer_py/
+    restart: always
+    networks:
+      - library-net
+    environment:
+      - MODEL_NAME=intfloat/multilingual-e5-small
+      - DEVICE=cuda
+      - USE_FP16=1
+      - NORMALIZE=1
+      - MAX_TOKENS=510
+      - OVERLAP=128
+      - MIN_ADVANCE=50
+      - E5_PREFIX="query:"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    ports:
+      - "8082:8082" # внешний порт 8082 → внутри 8081
 
   manticore-proxy:
     container_name: library-manticore-proxy
+    # image: library-manticore-proxy
     build: ./proxy
     restart: always
     ports:
@@ -55,14 +84,14 @@ services:
     environment:
       - MANTICORE_API_KEY_FILE=/run/secrets/manticore_api_key
       - MANTICORE_HOST=manticore:9308 # Адрес Manticore в Docker-сети
+      - VECTORIZER_HOST=http://vectorizer:8081
+      - VECTORIZER_PY_HOST=http://vectorizer_py:8082
     secrets:
       - manticore_api_key
     depends_on:
       - manticore
-
-# volumes:
-#   manticore:
-
+      - vectorizer
+      # - vectorizer_py
 
 secrets:
   manticore_api_key:
@@ -71,3 +100,4 @@ secrets:
 networks:
   library-net:
     name: library-net
+    driver: bridge
